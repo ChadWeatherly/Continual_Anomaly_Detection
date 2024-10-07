@@ -1,8 +1,8 @@
 # Dataset and model files
 *.png
 *.npz
-*tile/readme.txt
-*tile/license.txt
+datasets/*license.txt
+datasets/*readme.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
