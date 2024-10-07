@@ -1,18 +1,26 @@
-from tqdm import tqdm
-import torch
-from torch import optim
 import os
-import numpy as np
-from eval import eval_model
+
+import torch
+from tqdm import tqdm
+
 from argument import get_args
-from models import get_net_optimizer_scheduler
-from methods import get_model
 from datasets import get_dataloaders
+from eval import eval_model
+from methods import get_model
+from models import get_net_optimizer_scheduler
 from utils.density import GaussianDensityTorch
 
 
-
 def get_inputs_labels(data):
+    """
+
+    Parameters:
+    data: The input data to be processed. It can be a list of tensors or a single tensor.
+
+    Return:
+    A tuple containing processed input tensors and corresponding labels.
+
+    """
     if isinstance(data, list):
         inputs = [x.to(args.device) for x in data]
         labels = torch.arange(len(inputs), device=args.device)
@@ -25,6 +33,12 @@ def get_inputs_labels(data):
 
 
 def main(args):
+    """
+    Main method to train the model and save checkpoint.
+
+    :param args: dictionary of arguments
+    """
+    # models/__init__.py
     net, optimizer, scheduler = get_net_optimizer_scheduler(args)
     density = GaussianDensityTorch()
     net.to(args.device)
