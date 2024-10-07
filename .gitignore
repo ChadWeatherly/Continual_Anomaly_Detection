@@ -1,8 +1,7 @@
 # Dataset and model files
 *.png
 *.npz
-datasets/*license.txt
-datasets/*readme.txt
+mvtec_anomaly_detection*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
