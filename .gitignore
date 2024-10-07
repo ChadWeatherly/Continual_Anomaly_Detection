@@ -17,7 +17,7 @@ env/
 .virtualenv/
 
 # PyCharm project files
-.idea*
+*.idea*
 
 # PyCharm working directory file
 *.iml
