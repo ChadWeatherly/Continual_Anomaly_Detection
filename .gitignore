@@ -18,6 +18,8 @@ env/
 
 # PyCharm project files
 *.idea*
+.idea/Continual_Anomaly_Detection.iml
+/.idea
 
 # PyCharm working directory file
 *.iml
