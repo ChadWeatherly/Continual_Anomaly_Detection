@@ -1,0 +1,61 @@
+# Ignore test files
+*.ipynb
+
+# Ignore Python bytecode and cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info
+*.pyo
+*.whl
+*.dist-info
+*.par
+
+# Ignore pip wheelhouse (if you use pip's --wheel-dir)
+wheelhouse/
+
+# Ignore virtual environments
+venv/
+ENV/
+env/
+*.venv
+*.virtualenv
+
+# Ignore common directories used by Python for packaging
+build/
+dist/
+*.spec
+
+# Ignore logs
+*.log
+*.out
+*.err
+
+# Ignore local testing or coverage results
+.coverage
+htmlcov/
+.tox/
+.cache/
+.pytest_cache/
+
+# Ignore PyCharm project files
+.idea/
+
+# Ignore Jupyter Notebook checkpoints (if using Jupyter)
+.ipynb_checkpoints/
+
+# Ignore database files
+*.sqlite3
+*.db
+
+# Ignore Docker-related artifacts
+Dockerfile~
+docker-compose.yml~
+*.dockerignore~
+
+# Ignore Git repository files
+.git/
+.gitignore

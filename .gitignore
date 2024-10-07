@@ -1,0 +1,106 @@
+# Dataset and model files
+*.png
+*.npz
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+.virtualenv/
+
+# PyCharm project files
+.idea*
+
+# PyCharm working directory file
+*.iml
+
+# Python package files
+*.egg
+*.egg-info/
+*.eggs/
+dist/
+build/
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage results
+.coverage
+.tox/
+.cache/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter Notebook checkpoints (if applicable)
+.ipynb_checkpoints/
+
+# PyInstaller
+#  Usually these are written to a `build/` dir
+#  if you have custom build paths, adjust this appropriately
+*.spec
+
+# Docker
+docker-compose.yml~
+docker-compose.override.yml
+.docker/
+
+# OS generated files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Mac system files
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+._*
+
+# Linux system files
+*~
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# JetBrains IDE settings
+.idea/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+.envrc
+
+# pyenv
+.python-version
+
+# Editor directories and files
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~
+
+# Ignore compiled files for Cython (if applicable)
+*.c
+*.so
+*.o
