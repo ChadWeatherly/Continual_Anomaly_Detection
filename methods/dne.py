@@ -7,12 +7,47 @@ from .utils.base_method import BaseMethod
 
 
 class DNE(BaseMethod):
+    """
+
+    class DNE(BaseMethod):
+    Defining a class DNE that inherits from BaseMethod.
+
+    __init__(self, args, net, optimizer, scheduler):
+    Initializes the DNE object with provided arguments such as args, net, optimizer, and scheduler.
+    Sets the CrossEntropy loss as an attribute.
+
+    forward(self, epoch, inputs, labels, one_epoch_embeds, t, *args):
+    Defines the forward method taking epoch, inputs, labels, one_epoch_embeds, t, and optional args.
+    Performs training operations such as gradient zeroing, forward pass, loss calculation, backward pass, optimizer update, and scheduler step.
+
+    training_epoch(self, density, one_epoch_embeds, task_wise_mean, task_wise_cov, task_wise_train_data_nums, t):
+    Defines training_epoch method with parameters density, one_epoch_embeds, task_wise_mean, task_wise_cov, task_wise_train_data_nums, and t.
+    Performs training operations related to density evaluation tasks.
+
+    """
     def __init__(self, args, net, optimizer, scheduler):
         super(DNE, self).__init__(args, net, optimizer, scheduler)
         self.cross_entropy = nn.CrossEntropyLoss()
 
 
     def forward(self, epoch, inputs, labels, one_epoch_embeds, t, *args):
+        """
+
+        Method: forward
+
+        Description: This method performs a forward pass during training and updates the model parameters based on the loss calculated from the output predictions.
+
+        Parameters:
+        - epoch (int): The current epoch number.
+        - inputs (Tensor): The input data to the model.
+        - labels (Tensor): The corresponding labels for the input data.
+        - one_epoch_embeds (list): List to store intermediate embeddings for one epoch.
+        - t (int): Current training step.
+        - *args: Additional arguments.
+
+        Return Type: None
+
+        """
         if self.args.dataset.strong_augmentation:
             half_num = int(len(inputs) / 2)
             no_strongaug_inputs = inputs[:half_num]
