@@ -39,6 +39,7 @@ def main(args):
     :param args: dictionary of arguments
     """
     # models/__init__.py
+    # net is the backbone (They tried ResNet, net_CSFlow, and net_RevDis before settling on ViT
     net, optimizer, scheduler = get_net_optimizer_scheduler(args)
     density = GaussianDensityTorch()
     net.to(args.device)
