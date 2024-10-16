@@ -1,12 +1,11 @@
-from .resnet import ResNetModel
-from .vit import ViT
-from .csflow_net import NetCSFlow
-from .revdis_net import NetRevDis
-
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
-from utils.optimizer import get_optimizer
 
+from utils.optimizer import get_optimizer
+from .csflow_net import NetCSFlow
+from .resnet import ResNetModel
+from .revdis_net import NetRevDis
+from .vit import ViT
 
 
 def get_net_optimizer_scheduler(args):
@@ -17,7 +16,7 @@ def get_net_optimizer_scheduler(args):
     elif args.model.name == 'vit':
         net = ViT(num_classes=args.train.num_classes)
         if args.model.pretrained:
-            checkpoint_path = './checkpoints/ViT-B_16.npz'
+            checkpoint_path = './models/ViT-B_16.npz'
             net.load_pretrained(checkpoint_path)
         optimizer = get_optimizer(args, net)
         scheduler = CosineAnnealingWarmRestarts(optimizer, args.train.num_epochs)

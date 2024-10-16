@@ -3,27 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class DNE(nn.Module):
-    """
-
-    class DNE(BaseMethod):
-    Defining a class DNE that inherits from BaseMethod.
-
-    __init__(self, args, net, optimizer, scheduler):
-    Initializes the DNE object with provided arguments such as args, net, optimizer, and scheduler.
-    Sets the CrossEntropy loss as an attribute.
-
-    forward(self, epoch, inputs, labels, one_epoch_embeds, t, *args):
-    Defines the forward method taking epoch, inputs, labels, one_epoch_embeds, t, and optional args.
-    Performs training operations such as gradient zeroing, forward pass, loss calculation, backward pass, optimizer update, and scheduler step.
-
-    training_epoch(self, density, one_epoch_embeds, task_wise_mean, task_wise_cov, task_wise_train_data_nums, t):
-    Defines training_epoch method with parameters density, one_epoch_embeds, task_wise_mean, task_wise_cov, task_wise_train_data_nums, and t.
-    Performs training operations related to density evaluation tasks.
-
-    """
-
     def __init__(self):
         super().__init__()  # Make sure to inherit all methods/properties from nn.Module
         # Get cpu, gpu or mps device for training.
@@ -38,19 +18,6 @@ class DNE(nn.Module):
 
     def forward(self, epoch, inputs, labels, one_epoch_embeds):
         """
-
-        Method: forward
-
-        Description: This method performs a forward pass during training and updates the model parameters based on the loss calculated from the output predictions.
-
-        Parameters:
-        - epoch (int): The current epoch number.
-        - inputs (Tensor): The input data to the model.
-        - labels (Tensor): The corresponding labels for the input data.
-        - one_epoch_embeds (list): List to store intermediate embeddings for one epoch.
-        - *args: Additional arguments.
-
-        Return Type: None
 
         """
         if self.args.dataset.strong_augmentation:
