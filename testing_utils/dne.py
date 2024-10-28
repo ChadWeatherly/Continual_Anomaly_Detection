@@ -21,11 +21,11 @@ class DNE(nn.Module):  # Distribution of Normal Embeddings
         print(f"Using {self.device} device")
         # Get pre-trained Vision Transformer (ViT-B_16, like paper)
         self.vit = vit_b_16(weights='DEFAULT')  # Pre-trained weights on ImageNet
+        # Freeze patch embedding layer, based on code implementation
+        for param in self.vit.conv_proj.parameters():
+            param.requires_grad = False
         # head is its own module, so we can easily freeze layers in autograd
-        self.head = nn.Sequential(
-            nn.Linear(in_features=768, out_features=2),
-            nn.Softmax(dim=1)
-        )
+        self.head = nn.Linear(in_features=768, out_features=2)
         # Creating memory mechanism
         # Total memory, M, which will contain a list of statistics (mean, cov, num) for each task
         self.memory = []
@@ -40,17 +40,20 @@ class DNE(nn.Module):  # Distribution of Normal Embeddings
     def forward(self, img, head=False, add_to_z_epoch=False):
         # Calculate embeddings, Z, from ViT
         embeds = self.embed(img)  # B x 768
-        # Add embeddings, Z, to z_epoch
-        if add_to_z_epoch:  # The paper only uses the last epoch's data, so why calculate each epoch?
-            z = embeds.detach().clone()
-            if self.z_epoch is None:
-                self.z_epoch = z
-            else:
-                self.z_epoch = torch.cat((self.z_epoch, z))
-        # Only pass embeddings through head if training model
+
+        # Add embeddings to z_epoch if in training
+        if add_to_z_epoch:
+            with torch.no_grad():
+                z = embeds.detach().clone()
+                if self.z_epoch is None:
+                    self.z_epoch = z
+                else:
+                    self.z_epoch = torch.cat((self.z_epoch, z))
+
+        # Return both logits and embeddings during training
         if head:
-            preds = self.head(embeds)
-            return preds
+            logits = self.head(embeds)
+            return logits
 
         return embeds
 

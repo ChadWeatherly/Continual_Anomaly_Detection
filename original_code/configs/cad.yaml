@@ -7,7 +7,7 @@ dataset:
   n_classes_per_task: 3  # mul_class_incre: 3; one_class_incre:1. if joint: 15
   n_tasks: 5  # mul_class_incre: 5; seq-mtd-mvtec, one_class_incre：6. if joint: 1
   dataset_order: 1 # 1, 2, 3
-  strong_augmentation: True # strong augmentation: cutpaste, maskimg, etc.; weak augmentation: ColorJitter, RandomRotation, etc.
+  strong_augmentation: False # strong augmentation: cutpaste, maskimg, etc.; weak augmentation: ColorJitter, RandomRotation, etc.
   random_aug: False
 
 
@@ -47,7 +47,7 @@ train:
 eval:
   eval_classifier: density # density, head
   batch_size: 32 # 32, revdis:1; csflow:16
-  visualization: False
+  visualization: True
 
 
 

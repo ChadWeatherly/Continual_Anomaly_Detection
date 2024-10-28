@@ -125,8 +125,8 @@ def eval_model(args, epoch, dataloaders_test, learned_tasks, net, density):
 
             if args.eval.visualization:
                 name = f'{args.model.method}_task{len(learned_tasks)}_{learned_task[0]}_epoch{epoch}'
-                his_save_path = f'./his_results/{args.model.method}{args.model.name}_{args.train.num_epochs}e_order{args.data_order}_seed{args.seed}'
-                tnse_save_path = f'./tsne_results/{args.model.method}{args.model.name}_{args.train.num_epochs}e_order{args.data_order}_seed{args.seed}'
+                his_save_path = f'./his_results/{args.model.method}{args.model.name}_{args.train.num_epochs}e_seed{args.seed}'
+                tnse_save_path = f'./tsne_results/{args.model.method}{args.model.name}_{args.train.num_epochs}e_seed{args.seed}'
                 plot_tsne(labels, np.array(embeds), defect_name=name, save_path=tnse_save_path)
                 # These parameters can be modified based on the visualization effect
                 start, thresh, interval = 0, 120, 1

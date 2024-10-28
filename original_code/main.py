@@ -9,6 +9,7 @@ from eval import eval_model
 from methods import get_model
 from models import get_net_optimizer_scheduler
 from utils.density import GaussianDensityTorch
+import warnings
 
 
 def get_inputs_labels(data):
@@ -86,5 +87,6 @@ def main(args):
 
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-    args = get_args()
-    main(args)
+    with warnings.catch_warnings(action="ignore"):
+        args = get_args()
+        main(args)
