@@ -42,4 +42,5 @@ def get_mvtec_dataloaders(args, t, dataloaders_train, dataloaders_test, learned_
     print('class name:', task_mvtec_classes, 'number of training sets:', len(train_data),
           'number of testing sets:', len(test_data))
 
-    return train_dataloader, dataloaders_train, dataloaders_test, learned_tasks, len(train_data), all_test_filenames
+    return train_dataloader, dataloaders_train, dataloaders_test, learned_tasks, len(
+        train_data), all_test_filenames, train_data, test_data

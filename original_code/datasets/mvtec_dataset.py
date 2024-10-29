@@ -71,6 +71,7 @@ class MVTecAD(Dataset):
             # img = img.convert("RGB")
             img = self.all_imgs[idx].copy()
             if self.transform is not None:
+                print('train dataset has a transform')
                 img = self.transform(img)
             return img
         else:
