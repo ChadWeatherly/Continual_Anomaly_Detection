@@ -86,31 +86,29 @@ def main(args):
             for batch_idx, (data) in enumerate(train_dataloader):
                 inputs, labels = get_inputs_labels(data)
                 print(labels)
-        #         break
-        #     break
-        # break
-        #     model(epoch, inputs, labels, one_epoch_embeds, t, extra_para=None)
-        #
-        # # Periodic evaluation during training
-        # if args.train.test_epochs > 0 and (epoch + 1) % args.train.test_epochs == 0:
-        #     net.eval()
-        #     # Update density estimation with current embeddings
-        #     density = model.training_epoch(
-        #         density,
-        #         one_epoch_embeds,
-        #         task_wise_mean,
-        #         task_wise_cov,
-        #         task_wise_train_data_nums,
-        #         t
-        #     )
-        #     # Evaluate model on all learned tasks
-        #     eval_model(args, epoch, dataloaders_test, learned_tasks, net, density)
-        #     net.train()
+
+            model(epoch, inputs, labels, one_epoch_embeds, t, extra_para=None)
+
+        # Periodic evaluation during training
+        if args.train.test_epochs > 0 and (epoch + 1) % args.train.test_epochs == 0:
+            net.eval()
+            # Update density estimation with current embeddings
+            density = model.training_epoch(
+                density,
+                one_epoch_embeds,
+                task_wise_mean,
+                task_wise_cov,
+                task_wise_train_data_nums,
+                t
+            )
+            # Evaluate model on all learned tasks
+            eval_model(args, epoch, dataloaders_test, learned_tasks, net, density)
+            net.train()
 
     # Save final model and density estimator
-    # if args.save_checkpoint:
-    #     torch.save(net, f'{args.save_path}/net.pth')
-    #     torch.save(density, f'{args.save_path}/density.pth')
+    if args.save_checkpoint:
+        torch.save(net, f'{args.save_path}/net.pth')
+        torch.save(density, f'{args.save_path}/density.pth')
 
 
 if __name__ == "__main__":
