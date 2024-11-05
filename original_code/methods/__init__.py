@@ -13,7 +13,7 @@ from .agem import AGEM
 def get_model(args, net, optimizer, scheduler):
     if args.model.method == 'dne':
         model = DNE(args, net, optimizer, scheduler)
-        # args.dataset.strong_augmentation = True
+        args.dataset.strong_augmentation = True
     elif args.model.method == 'upper':
         model = CutPaste(args, net, optimizer, scheduler)
     elif args.model.method == 'cutpaste':
