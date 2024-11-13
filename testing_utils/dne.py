@@ -50,7 +50,7 @@ class DNE(nn.Module):  # Distribution of Normal Embeddings
                 else:
                     self.z_epoch = torch.cat((self.z_epoch, z))
 
-        # Return both logits and embeddings during training
+        # Return logits or embeddings, based on the head param
         if head:
             logits = self.head(embeds)
             return logits

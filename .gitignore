@@ -2,6 +2,7 @@
 *.png
 *.npz
 *.pth
+*.pt
 mvtec_anomaly_detection*
 
 # Byte-compiled / optimized / DLL files
