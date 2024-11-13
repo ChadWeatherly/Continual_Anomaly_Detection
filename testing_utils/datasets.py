@@ -17,8 +17,6 @@ class mvtec(Dataset):
             mtd: Whether to add Magnetic Tile Defects or not
             train: Whether the dataset is used for training or testing
             task: Which task, an int in [1, 5]
-            cutpaste: Whether to do cutpaste transformation or not (found in their original code)
-            cutpaste:
         """
         # Don't need to transform; ViT does that
         self.multi = multi  # Whether to do multi-category or not
@@ -31,12 +29,24 @@ class mvtec(Dataset):
         self.filenames = None
         self.labels = None  # 1 = anomaly, 0 = good
         self.get_all_filenames()  # creates list of all filenames and paths, self.filenames
-        self.vit_transforms = ViT_B_16_Weights.DEFAULT.transforms()  # Pre-processing transforms for ViT (resize, normalize)
+        # Defining transforms
         if train:
+            # Define training transforms pipeline including data augmentation
+            self.transform = transforms.Compose([
+                transforms.ToImage(),
+                transforms.ToDtype(torch.float32, scale=True),  # Scale to [0, 1]
+                transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+                transforms.RandomRotation(90),
+                ViT_B_16_Weights.DEFAULT.transforms()  # Contains normalization
+            ])
             # These transforms are copied from the original code, which does them sneakily without telling you
             self.cutpaste_transform = CutPaste()
+        else:
+            # Define testing transforms pipeline
             self.transform = transforms.Compose([
-                transforms.RandomRotation(90)
+                transforms.ToImage(),
+                transforms.ToDtype(torch.float32, scale=True),  # Scale to [0, 1]
+                ViT_B_16_Weights.DEFAULT.transforms()  # Contains normalization
             ])
 
         return
@@ -98,15 +108,17 @@ class mvtec(Dataset):
             category = self.filenames[new_idx].split('/')[1]
             img = read_image(self.filenames[new_idx]).expand(3, -1, -1)
             if label == 1:
+                # Apply CutPaste before normalization
                 img = self.cutpaste_transform(img)
+
+            # Apply all other transforms including normalization
             img = self.transform(img)
-            img = self.vit_transforms(img)
             return img, label, category
         else:  # For testing mode
             category = self.filenames[idx].split('/')[1]
             img = read_image(self.filenames[idx]).expand(3, -1, -1)
             # Transforms the image from 3xHxW to 3x224x224 and normalizes all values to [0, 1]
-            img = self.vit_transforms(img)  # B x 3 x 224 x 224
+            img = self.transform(img)  # B x 3 x 224 x 224
             return img, self.labels[idx], category
 
 
@@ -120,8 +132,9 @@ class CutPaste(object):
         '''
         self.to_pil = transforms.ToPILImage()
         self.to_tensor = transforms.Compose([
-            transforms.ToImage(),
-            transforms.ToDtype(torch.float32)
+            transforms.PILToTensor(),
+            # Convert tv_tensors.Image back to regular tensor
+            lambda x: torch.as_tensor(x.numpy())
         ])
 
     @staticmethod
