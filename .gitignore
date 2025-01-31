@@ -1,6 +1,6 @@
 # Dataset and model files
 *.png
-.jpg
+*.jpg
 *.npz
 *.pth
 *.pt
