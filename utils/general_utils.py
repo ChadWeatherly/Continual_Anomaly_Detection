@@ -11,20 +11,18 @@ def create_mvtec_supervised():
     train_frac = 0.2
     path = "datasets/mvtec_anomaly_detection/supervised/"
     for cat in os.listdir(path): # Iterate through categories
-        
         if "." not in cat:
-            for anom_class in os.listdir(f"{path}{cat}/test"): # Iterate through category anomaly types
+            for anom_class in os.listdir(f"{path}{cat}/test"): # Iterate through category anomaly types in testing set
                 if anom_class != "good":
                     for img_file in os.listdir(f"{path}{cat}/test/{anom_class}"): # Iterate through each image
                         if img_file.endswith(".png"):
                             if random.random() <= train_frac:
                                 old_path = f"{path}{cat}/test/{anom_class}"
-                                new_path = f"{path}{cat}/train/{anom_class}/"
+                                new_path = f"{path}{cat}/train/{anom_class}"
                                 if not os.path.isdir(new_path):
-                                    print(new_path)
                                     os.makedirs(new_path, 0o777)
                                     print('made dir', sep="\n")
-                                # os.rename(path+cat+"/test/"+anom_class+"/"+img_file, path+cat+"/train/"+anom_class+"/"+img_file)
+                                os.rename(f"{old_path}/{img_file}", f"{new_path}/{img_file}")
 
 
     return
