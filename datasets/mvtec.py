@@ -31,9 +31,7 @@ that there are some anomalies, but not many. There are already "good" examples i
 move ~20% of the anomalies from the testing set to the training set.
 """
 
-from torch.utils.data import Dataset
-import os
-from torchvision.io import read_image
+from datasets import *
 
 # TODO: Add transforms if necessary
 class mvtec(Dataset):

@@ -11,15 +11,12 @@ The rest of the images are split into 5 anomalous type classes:
 
 Each image (.jpg) has a corresponding ground truth mask file (.png).
 
-For both unsupervised and supervised experiments, we want to have about a 70/30 training/testing split.
-TODO: Think about training/testing splits between unsupervised and supervised.
-In unsupervised, only 70% of normal images will be moved to the training set.
-In supervised, 70% of all images will be moved to the training set.
+- For supervised training, we can do a regular 70/30 split between training and testing, so that training
+and testing follow similar distributions.
+- For unsupervised, we can move over half of the normal images to training, but keep the rest of the images in testing.
 """
 
-from torch.utils.data import Dataset
-import os
-from torchvision.io import read_image
+from datasets import *
 
 class mtd(Dataset):
     def __init__(self, train=True, task=None, unsupervised=True):
