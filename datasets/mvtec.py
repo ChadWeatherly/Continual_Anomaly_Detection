@@ -28,14 +28,15 @@ training and testing set, but there are only normal ("good") samples in the trai
 
 In order to create the supervised dataset, we first assume that during real-life supervised scenarios, it's possible
 that there are some anomalies, but not many. There are already "good" examples in the training and testing sets, but we
-move ~20% of the anomalies from the testing set to the training set.
+move ~20% of the anomalies from the testing set to the training set. We found that each type of anomaly (each category
+has several types of anomalies) contains on average 17 images, so we felt like moving 20% of the anomalies
+over for supervised training was sufficient and mirrored real-life scenarios.
 """
 
 from datasets import *
 
-# TODO: Add transforms if necessary
 class mvtec(Dataset):
-    def __init__(self, train=True, task=None, unsupervised=True):
+    def __init__(self, train=True, task=None, unsupervised=True, transform=None):
         """
         Creates MVTEC dataset for use in PyTorch
         Args:
@@ -43,17 +44,18 @@ class mvtec(Dataset):
             task: Which task, a string of one of the 12 mvtec categories
             unsupervised: Whether to use unsupervised or supervised training, i.e. whether training uses only normal
                             samples or not
+            transform: PyTorch pre-processing transforms to be applied to the images
         """
         self.train = train  # Whether this is the training or testing set
         self.task = task
         self.unsupervised = unsupervised
+        self.transform = transform
 
         # Path is the general path to the training/testing set of a given task
         # We need the path to also extract groud truth (gt) images
         self.path = ('datasets/mvtec_anomaly_detection/' +
                      f'{'unsupervised/' if unsupervised else 'supervised/'}' +
                      f'{task}/')
-        # print(self.path)
 
         self.filenames = []
         self.labels = []  # 1 = anomaly, 0 = good
@@ -81,7 +83,9 @@ class mvtec(Dataset):
         # Images need to be pre-processed beforehand so dataloader handles same size images
         # need to do is make sure the image has 3 channels
         img_filename = self.filenames[idx]
-        img = read_image(img_filename)#.expand(3, -1, -1)
+        img = read_image(img_filename)
+        if self.transform is not None:
+            img = self.transform(img)
 
         # Get ground truth image
         img_split = img_filename.split('/')
