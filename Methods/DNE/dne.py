@@ -1,13 +1,39 @@
-import numpy as np
-import torch
-import torch.nn as nn
-from torchvision.models.vision_transformer import vit_b_16
-from torchvision.models import ViT_B_16_Weights
-from torch.distributions.normal import Normal
-import torch.nn.functional as F
+from Methods import *
+
+"""
+Going through the paper, we want to make sure our implementation matches theirs.
+
+Algorithm Notes:
+    
+    TRAINING
+    - The embeddings I feel good with, where a batch of image samples, I with dimension B x C x H x W
+        will get transformed to a vector of size B x D, where D is the dimension of the embeddings (768).
+    - z_epoch should be a list, where each item is a batched output embedding, Z with a dimension of B x D
+    - Regardless, the paper shows that the normal distribution characteristics are calculated based on
+        each individiaul z, with a dimension of D. They do specifically mention this is only done on the last epoch
+        (epoch 50), right after eq. 5. So, the mean is a vector of size D, and covariance matrix should be of size DxD.
+    *- In update_memory, we do want to calculate the correct covariance, based on equations 4 and 5 in the paper
+    *- the head classifier is frozen after the first task, and training is done using cross entropy loss.
+        Therefore, we should probably add a softmax to the output
+    
+    TESTING
+    - Given the memory mechanism, where every task has a N, mean, cov, N samples are taken from each task distribution
+        and used to create a global distribution (almost re-creating the dataset, essentially). 
+    - We then find global distribution parameters of mean, cov_shrunk
+    *- Mahalanobis distance is compared with those global distribution values and the embeddings of the new sample  
+     
+    EXPERIMENTS
+    - It seems that during training, one task is trained at a time, then after training on task t, testing is done
+        to find the accuracy on all previous samples from tasks 1 to t. 
+    *- So, the accuracy during training is done using the Mahalanobis distance. After training on task t,
+        all tasks 1-t are sampled to create a distribution for those tasks 1-t. Testing could be done on all
+        test samples from tasks 1 to t, or invidually per task and averaged.  
+    - They do mention a DNE+DER (Dark Experience Replay) method with slight results improving (~ +3-4% or so), 
+        but they don't mention which images are saved and when this replay happens, so we will skip this for now.
+"""
 
 
-class DNE(nn.Module):  # Distribution of Normal Embeddings
+class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
     def __init__(self):
         super().__init__()  # Make sure to inherit all methods/properties from nn.Module
         # Get cpu, gpu or mps device for training.
@@ -96,16 +122,20 @@ class DNE(nn.Module):  # Distribution of Normal Embeddings
         task_memory = []  # will contain num_task, mean, covariance
         # Add num_task
         task_memory.append(self.z_epoch.shape[0])
-        # Add mean matrix, should be a 1D tensor of length 768
+        # Add mean vector, should be a 1D tensor of length 768
         task_memory.append(self.z_epoch.mean(dim=0))
         # Add standard deviation
         # Paper does covariance matrix, but we need standard deviation to create
         # and sample from distribution in inference. After the distribution is created,
         # we can sample for global distribution and calculate covariance matrix, when it's really needed
-        task_memory.append(self.z_epoch.std(dim=0))
+        # task_memory.append()
 
         self.z_epoch = None
         self.memory.append(task_memory)
+        return
+
+    def _calc_shrunk_cov(self):
+
         return
 
     def generate_global_samples(self):
