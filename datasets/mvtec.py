@@ -84,8 +84,7 @@ class mvtec(Dataset):
         # need to do is make sure the image has 3 channels
         img_filename = self.filenames[idx]
         img = read_image(img_filename)
-        if self.transform is not None:
-            img = self.transform(img)
+        # Don't need to transform as all images in a task are the same dimension
 
         # Get ground truth image
         img_split = img_filename.split('/')
@@ -97,7 +96,9 @@ class mvtec(Dataset):
             gt_filename = f'{self.path}ground_truth/{anom_type}/{img_num}_mask.png'
             print(gt_filename)
             gt_img = read_image(gt_filename)
+            gt_img = self.transform(gt_img)
 
-            return {'image': img,
-                    'label': self.labels[idx],
-                    'ground_truth': gt_img}
+        return {'image': img,
+                'ground_truth_mask': gt_img,
+                'label': self.labels[idx],
+                'anomaly_type': anom_type}

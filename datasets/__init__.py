@@ -1,15 +1,25 @@
 import os
 import random
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 from torchvision.io import read_image
 from torchvision.utils import make_grid
-import torchvision.transforms as transforms
+import torchvision.transforms.v2 as transforms
 import torchvision.transforms.functional as F
 import plotly.graph_objects as go
 from PIL import Image
 from .mvtec import mvtec
 from .mtd import mtd
+
+### Collate samples appropriately
+def collate(batch):
+    result = {}
+    for key in batch[0].keys():
+        result[key] = [item[key] for item in batch]
+        if key == 'image':
+            result[key] = torch.stack(result[key])
+    return result
 
 ### Show a list of tensor images
 def show(imgs, grid_rows=None, grid_cols=None):

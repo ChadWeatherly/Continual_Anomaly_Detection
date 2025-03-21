@@ -74,7 +74,15 @@ class mtd(Dataset):
         """
         self.train = train
         self.unsupervised = unsupervised
-        self.transform = transform
+        # If no transform is given, we want to make sure we resize so we can batch
+        # The new dims are for passing into ViT (224 x 224)
+        if transform is None:
+            self.transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToDtype(torch.float32),
+            ])
+        else:
+            self.transform = transform
         self.data_aug = data_aug # Type of data augmentation
         self.data_aug_params = data_aug_params # Parameters for data augmentation
         self.continual_transform = None # The actual data augmentation to be applied
@@ -127,7 +135,7 @@ class mtd(Dataset):
         # Images need to be pre-processed beforehand so dataloader handles same size images
         # need to do is make sure the image has 3 channels
         img_filename = self.filenames[idx]
-        img = read_image(img_filename)
+        img = read_image(img_filename).expand(3, -1, -1)
 
         # Get ground truth image
         img_split = img_filename.split('/')
@@ -145,10 +153,10 @@ class mtd(Dataset):
             # if the mask exists and the transformation alters the location of the anomaly
             if gt_img is not None and self.data_aug != "color":
                 gt_img = self.continual_transform(gt_img)
-        if self.transform is not None:
-            img = self.transform(img)
-            if gt_img is not None:
-                gt_img = self.transform(gt_img)
+
+        img = self.transform(img)
+        if gt_img is not None:
+            gt_img = self.transform(gt_img)
 
         return {'image': img,
                 'ground_truth_mask': gt_img,
