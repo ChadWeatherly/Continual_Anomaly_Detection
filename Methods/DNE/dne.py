@@ -1,3 +1,5 @@
+import torch
+
 from Methods import *
 
 """
@@ -13,15 +15,13 @@ Algorithm Notes:
     - Regardless, the paper shows that the normal distribution characteristics are calculated based on
         each individiaul z, with a dimension of D. They do specifically mention this is only done on the last epoch
         (epoch 50), right after eq. 5. So, the mean is a vector of size D, and covariance matrix should be of size DxD.
-    - In update_memory, we do want to calculate the correct covariance, based on equations 4 and 5 in the paper
-    - the head classifier is frozen after the first task, and training is done using cross entropy loss.
-        Therefore, we should probably add a softmax to the output
+    - the head classifier is frozen after the first task, but PyTorch's CrossEntropy doesn't need softmax output
     
     TESTING
     - Given the memory mechanism, where every task has a N, mean, cov, N samples are taken from each task distribution
         and used to create a global distribution (almost re-creating the dataset, essentially). 
-    *- We then find global distribution parameters of mean, cov_shrunk.
-    *- Mahalanobis distance is compared with those global distribution values and the embeddings of the new sample.
+    - We then find global distribution parameters of mean, cov_shrunk.
+    - Mahalanobis distance is compared with those global distribution values and the embeddings of the new sample.
         They kind of treat their method as unsupervised without actually mentioning it, and the Mahalanobis distance
         should have some kind of threshold to distinguish when a sample is far enough away, it means that that 
         sample is an anomaly.   
@@ -29,32 +29,19 @@ Algorithm Notes:
     EXPERIMENTS
     - It seems that during training, one task is trained at a time, then after training on task t, testing is done
         to find the accuracy on all previous samples from tasks 1 to t. 
-    *- So, the accuracy reported is done using the Mahalanobis distance. After training on task t,
+    - So, the accuracy reported is done using the Mahalanobis distance. After training on task t,
         all tasks 1-t are sampled to create a distribution for those tasks 1-t. Testing could be done on all
         test samples from tasks 1 to t, or invidually per task and averaged.  
     - They do mention a DNE+DER (Dark Experience Replay) method with slight results improving (~ +3-4% or so), 
         but they don't mention which images are saved and when this replay happens, so we will skip this for now.
-    *- Need to adjust self.train_one_epoch() to save data given path variables
-    
-    TODO
-    - Update self.generate_global_samples() to also produce the distribution parameters
-    - Add a predict() or inference() method and then a mahalanobis distance method to do prediction
-    - Put experiment code template together
+    - Need to adjust self.train_one_epoch() to save data given path variables
 """
 
-
-class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
+# Distribution of Normal Embeddings
+class DNE_Model(BaseAnomalyDetector):
     def __init__(self):
-        super().__init__()  # Make sure to inherit all methods/properties from nn.Module
-        # Get cpu, gpu or mps device for training.
-        self.device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
-        )
-        print(f"Using {self.device} device")
+        super().__init__()  # Make sure to inherit all methods/properties from BaseAnomalyDetector
+
         # Get pre-trained Vision Transformer (ViT-B_16, like paper)
         self.vit = vit_b_16(weights='DEFAULT')  # Pre-trained weights on ImageNet
         # Freeze patch embedding layer, based on code implementation
@@ -69,8 +56,9 @@ class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
         self.memory = []
         # z_epoch holds embeddings for samples in  last epoch (epoch 50 in paper)
         self.z_epoch = None  # num_samples x 768
-        # all samples taken during inference time from task distributions
-        self.z_global = None
+        # Global distribution params for calculating mahalanobis distance
+        self.global_mu = None
+        self.global_cov = None
         # move to best device
         self.to(self.device)
         return
@@ -124,7 +112,7 @@ class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
 
     def update_memory(self):
         """
-        Updates the long-term memory based on z_epoch,
+        Updates the long-term memory, M, based on z_epoch,
         which after epoch 50 should be added into memory
 
         z_epoch should be of size (num_task, 768), where
@@ -160,29 +148,36 @@ class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
 
         return ((1 - alpha) * cov) + (coeff * torch.eye(D))
 
-    def generate_global_samples(self):
+    def generate_global_dist(self):
         """
         Based on the paper, a global mean and covariance distribution sampling is generated from the memory.
         We have to generate the samples, because the sklearn ShrunkCovariance class has to be used on cpu,
             which may conflict with model being on GPU or MPS.
         """
-        self.z_global = None
-        # we want to re-generate our original dataset from the memory distributions
+        # we want to re-generate our original dataset from the task distributions in memory
+        self.global_mu = None
+        self.global_cov = None
+        z_global = None
         for t in self.memory:
             n_t, mu, shrunk_cov = t
             gaussian = Normal(mu.cpu(), shrunk_cov.diag())
             task_samples = gaussian.sample((n_t,))  # samples n_t samples from task guassian
-            if self.z_global is None:
-                self.z_global = task_samples
+            if z_global is None:
+                z_global = task_samples
             else:
-                self.z_global = torch.cat((self.z_global, task_samples))
-        # self.z_global is then a size of N x 768, where N is the size of all tasks combined
+                z_global = torch.cat((z_global, task_samples))
+        # z_global is then a size of N x 768, where N is the size of all tasks combined
+        # where each task has size n, and the sum of all n-values is N
 
-        return self.z_global
+        # Based off z_global, we will calculate a global mean/covariance for use in Mahalanobis
+        self.global_mu = z_global.mean(dim=0) # 1D vector of size 768
+        self.global_cov = self._calc_shrunk_cov(z_global) # 2D vector of size 768 x 768 (D x D)
+
+        return
 
     def train_one_epoch(self, dataloader, optimizer, criterion,
-                        task_num, update_z_epoch,
-                        results_path=None, model_path=None):
+                        task_num, results_path=None, model_path=None,
+                        update_z_epoch=False):
         """
         Train a model on one epoch.
         Args:
@@ -190,11 +185,11 @@ class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
             optimizer: torch.optim.Optimizer
             criterion: loss function
             task_num: Which task is being trained on, starting at 1
-            add_to_z_epoch: Whether to add the global mean and covariance distribution to the memory
             results_path: If exists, where we want to save data about the results
             model_path: If exists, where we will save the model params
+            add_to_z_epoch: Whether to add the global mean and covariance distribution to the memory
 
-        Returns:
+        Returns: epoch_loss, the total accumulated loss for that epoch
 
         """
         self.train()
@@ -215,3 +210,30 @@ class DNE_Model(nn.Module):  # Distribution of Normal Embeddings
             optimizer.step()
 
         return epoch_loss
+
+    def predict(self, img):
+        """
+        Calculates the Mahalanobis distance for a given image as our prediction
+        Args:
+            img: should be an image read in as a tensor of size (3, 224, 224)
+
+        Returns: Mahalanobis distance, a number
+        """
+        img.to("cuda") if img.device != "cuda" else img
+        # Embedding
+        z = self.forward(img).cpu()
+
+        # Make sure to generate
+        if self.global_mu is None or self.global_cov is None:
+            self.generate_global_dist()
+
+        # z - z_bar
+        diff = (z - self.global_mu).detach().clone() # 1D vector of size 1 x 768
+        # Shrunk covariance inverse
+        inv = torch.linalg.inv(self.global_cov).detach().clone() # 768 x 768
+
+        # Start calculating distance
+        dist = torch.matmul(diff, inv) # output is 1 x 768
+        dist = torch.matmul(dist, diff.T) # output is 1 x 1
+
+        return dist.sqrt()[0][0].item()
