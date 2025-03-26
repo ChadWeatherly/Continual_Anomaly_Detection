@@ -10,7 +10,6 @@ from torchvision.models.vision_transformer import vit_b_16
 from torchvision.models import ViT_B_16_Weights
 from torch.distributions.normal import Normal
 import torch.nn.functional as F
-from .DNE.dne import DNE_Model
 
 class BaseAnomalyDetector(nn.Module):
     """Base class for anomaly detection models in continual learning scenarios.
@@ -21,7 +20,7 @@ class BaseAnomalyDetector(nn.Module):
     - Training/inference patterns
     - Memory management for continual learning
     """
-    def __init__(self, device=None):
+    def __init__(self):
         """Initialize the base anomaly detector.
 
         Args:
@@ -32,11 +31,13 @@ class BaseAnomalyDetector(nn.Module):
         super().__init__()
 
         # Set up device
-        self.device = device or (
-            "cuda" if torch.cuda.is_available() else
-            "mps" if torch.backends.mps.is_available() else
-            "cpu"
-        )
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
+
         print(f"Using {self.device} device")
 
         # Move to device
@@ -75,9 +76,24 @@ class BaseAnomalyDetector(nn.Module):
             **kwargs: Additional keyword arguments
 
         Returns:
-            float: Average loss for the epoch
+            float: Total Loss for that epoch
         """
         raise NotImplementedError("Subclasses must implement train_one_epoch method")
+
+    def eval_one_epoch(self, dataloader, criterion, task_num, **kwargs):
+        """
+        Evaluate the model for one epoch of a testing set
+
+        Args:
+            dataloader:
+            criterion:
+            task_num:
+            **kwargs:
+
+        Returns:
+            float: Total Loss for that epoch
+        """
+        raise NotImplementedError("Subclasses must implement eval_one_epoch method")
 
     def predict(self, x):
         """Make prediction for input.
@@ -91,24 +107,22 @@ class BaseAnomalyDetector(nn.Module):
         raise NotImplementedError("Subclasses must implement predict method")
 
     def save(self, path):
-        """Save model state.
-
-        Args:
-            path (str): Path to save model state
         """
-        torch.save({
-            'model_state_dict': self.state_dict(),
-            'memory': self.memory
-        }, path)
+        Saves the model to disk.
+        Args:
+            path: path to save the model to.
+        """
+        torch.save(self.state_dict(), path)
+        return
 
     def load(self, path):
-        """Load model state.
-
-        Args:
-            path (str): Path to load model state from
         """
-        checkpoint = torch.load(path)
-        self.load_state_dict(checkpoint['model_state_dict'])
+        Loads the model from disk.
+        Args:
+            path: path to load the model from.
+        """
+        self.load_state_dict(torch.load(path).to(self.device))
+        return
 
 
 

@@ -49,7 +49,15 @@ class mvtec(Dataset):
         self.train = train  # Whether this is the training or testing set
         self.task = task
         self.unsupervised = unsupervised
-        self.transform = transform
+        # If no transform is given, we want to make sure we resize so we can batch
+        # The new dims are for passing into ViT (224 x 224)
+        if transform is None:
+            self.transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToDtype(torch.float32),
+            ])
+        else:
+            self.transform = transform
 
         # Path is the general path to the training/testing set of a given task
         # We need the path to also extract groud truth (gt) images
@@ -84,7 +92,7 @@ class mvtec(Dataset):
         # need to do is make sure the image has 3 channels
         img_filename = self.filenames[idx]
         img = read_image(img_filename)
-        # Don't need to transform as all images in a task are the same dimension
+        img = self.transform(img)
 
         # Get ground truth image
         img_split = img_filename.split('/')

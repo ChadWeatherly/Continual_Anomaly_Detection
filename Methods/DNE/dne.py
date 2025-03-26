@@ -1,6 +1,5 @@
-import torch
-
 from Methods import *
+from Methods import BaseAnomalyDetector
 
 """
 Going through the paper, we want to make sure our implementation matches theirs.
@@ -176,7 +175,7 @@ class DNE_Model(BaseAnomalyDetector):
         return
 
     def train_one_epoch(self, dataloader, optimizer, criterion,
-                        task_num, results_path=None, model_path=None,
+                        task_num, results_path=None,
                         update_z_epoch=False):
         """
         Train a model on one epoch.
@@ -186,8 +185,7 @@ class DNE_Model(BaseAnomalyDetector):
             criterion: loss function
             task_num: Which task is being trained on, starting at 1
             results_path: If exists, where we want to save data about the results
-            model_path: If exists, where we will save the model params
-            add_to_z_epoch: Whether to add the global mean and covariance distribution to the memory
+            update_z_epoch: Whether to add the global mean and covariance distribution to the memory
 
         Returns: epoch_loss, the total accumulated loss for that epoch
 
@@ -210,6 +208,41 @@ class DNE_Model(BaseAnomalyDetector):
             optimizer.step()
 
         return epoch_loss
+
+    def eval_one_epoch(self, dataloader, criterion,
+                        results_path=None, model_path=None):
+        """
+        Eval a model on one epoch.
+        Args:
+            dataloader: Dataloader for the training data.
+            criterion: loss function
+            results_path: If exists, where we want to save data about the results
+            model_path: If exists, where we want to access model params
+            add_to_z_epoch: Whether to add the global mean and covariance distribution to the memory
+
+        Returns:
+            epoch_loss, the total accumulated loss for that epoch, from the head
+            mahalanobis_distances, the calculated mahalanobis_distances for each sample
+        """
+        self.eval()
+
+        epoch_loss = 0
+        mahalanobis_distances = []
+        for batch_idx, data in enumerate(dataloader):
+            imgs = data['image'].to(self.device)
+
+            # Get epoch loss
+            logits = self.forward(imgs, head=True,
+                                   add_to_z_epoch=False).cpu()
+            labels = torch.tensor(data['label'])
+            loss = criterion(logits, labels)
+            epoch_loss += loss.item()
+
+            # Get Mahalanobis Distance
+            for img in imgs:
+                mahalanobis_distances.append(self.predict(img))
+
+        return epoch_loss, mahalanobis_distances
 
     def predict(self, img):
         """
@@ -237,3 +270,4 @@ class DNE_Model(BaseAnomalyDetector):
         dist = torch.matmul(dist, diff.T) # output is 1 x 1
 
         return dist.sqrt()[0][0].item()
+
