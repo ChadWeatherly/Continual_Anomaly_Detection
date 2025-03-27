@@ -121,7 +121,7 @@ class BaseAnomalyDetector(nn.Module):
         Args:
             path: path to load the model from.
         """
-        self.load_state_dict(torch.load(path).to(self.device))
+        self.load_state_dict(torch.load(path))
         return
 
 

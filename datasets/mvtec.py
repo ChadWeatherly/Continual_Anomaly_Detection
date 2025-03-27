@@ -74,7 +74,7 @@ class mvtec(Dataset):
         """
         creates list of all image filenames, a list of strings
         """
-        img_path = self.path + 'train' if self.train else 'test'
+        img_path = (self.path + 'train') if self.train else (self.path + 'test')
         for anom_type in os.listdir(img_path): # iterating through anomaly types
             if "." not in anom_type: # Making sure the folder is not a file
                 for img in os.listdir(f'{img_path}/{anom_type}'): # iterating through images
@@ -92,6 +92,8 @@ class mvtec(Dataset):
         # need to do is make sure the image has 3 channels
         img_filename = self.filenames[idx]
         img = read_image(img_filename)
+        if img.shape[0] == 1:
+            img = img.expand(3, -1, -1)
         img = self.transform(img)
 
         # Get ground truth image
@@ -102,7 +104,6 @@ class mvtec(Dataset):
         else:
             img_num = img_split[-1].split('.')[0]
             gt_filename = f'{self.path}ground_truth/{anom_type}/{img_num}_mask.png'
-            print(gt_filename)
             gt_img = read_image(gt_filename)
             gt_img = self.transform(gt_img)
 

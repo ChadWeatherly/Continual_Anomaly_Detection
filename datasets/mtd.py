@@ -64,8 +64,8 @@ class mtd(Dataset):
                           scale should be a number between [0.0, 0.25], where the image can get scaled +/- scale
                           shear should also range from [0, 180], in the same way that rotation is
                 - ...
-            data_aug_params: A list of parameters.
-                        If a given transformation can be applied on a scale of [0.0, 1.0], the window is the
+            data_aug_params: A list of parameters for a given transformation.
+                        If a given transformation can be applied on a scale of [0.0, 1.0], the params are the
                         intensity range to apply to the images. For example, noise might be applied in an intensity window
                         of [0.2, 0.3]. This would equate to one task in the continual drift setting. Each different
                         data augmentation will have different params in a list.

@@ -118,18 +118,21 @@ class DNE_Model(BaseAnomalyDetector):
             num_task is the number of samples in the current task
             768 is the ViT latent dimension size, D
         """
-        task_memory = []  # will contain num_task, mean, covariance
-        # Add num_task
-        task_memory.append(self.z_epoch.shape[0])
-        # Add mean vector, should be a 1D tensor of length 768
-        task_memory.append(self.z_epoch.mean(dim=0))
-        # Add shrunk covariance, based on equations 4 and 6 from paper
-        # Should be a 2D vector of size D x D (D = 768)
-        task_memory.append(self._calc_shrunk_cov(self.z_epoch))
+        if self.z_epoch is None:
+            raise Exception("z_epoch not created")
+        else:
+            task_memory = []  # will contain num_task, mean, covariance
+            # Add num_task
+            task_memory.append(self.z_epoch.shape[0])
+            # Add mean vector, should be a 1D tensor of length 768
+            task_memory.append(self.z_epoch.mean(dim=0))
+            # Add shrunk covariance, based on equations 4 and 6 from paper
+            # Should be a 2D vector of size D x D (D = 768)
+            task_memory.append(self._calc_shrunk_cov(self.z_epoch))
 
-        self.z_epoch = None
-        self.memory.append(task_memory)
-        return
+            self.z_epoch = None
+            self.memory.append(task_memory)
+            return
 
     def _calc_shrunk_cov(self, data, alpha=0.5):
         """
@@ -169,8 +172,8 @@ class DNE_Model(BaseAnomalyDetector):
         # where each task has size n, and the sum of all n-values is N
 
         # Based off z_global, we will calculate a global mean/covariance for use in Mahalanobis
-        self.global_mu = z_global.mean(dim=0) # 1D vector of size 768
-        self.global_cov = self._calc_shrunk_cov(z_global) # 2D vector of size 768 x 768 (D x D)
+        self.global_mu = z_global.mean(dim=0).to(self.device) # 1D vector of size 768
+        self.global_cov = self._calc_shrunk_cov(z_global).to(self.device) # 2D vector of size 768 x 768 (D x D)
 
         return
 
@@ -226,7 +229,6 @@ class DNE_Model(BaseAnomalyDetector):
         """
         self.eval()
 
-        epoch_loss = 0
         mahalanobis_distances = []
         for batch_idx, data in enumerate(dataloader):
             imgs = data['image'].to(self.device)
@@ -236,13 +238,13 @@ class DNE_Model(BaseAnomalyDetector):
                                    add_to_z_epoch=False).cpu()
             labels = torch.tensor(data['label'])
             loss = criterion(logits, labels)
-            epoch_loss += loss.item()
 
             # Get Mahalanobis Distance
             for img in imgs:
                 mahalanobis_distances.append(self.predict(img))
 
-        return epoch_loss, mahalanobis_distances
+        # Note: each of these values are just float values (taken from Tensor.item())
+        return mahalanobis_distances, labels
 
     def predict(self, img):
         """
@@ -252,22 +254,60 @@ class DNE_Model(BaseAnomalyDetector):
 
         Returns: Mahalanobis distance, a number
         """
-        img.to("cuda") if img.device != "cuda" else img
         # Embedding
-        z = self.forward(img).cpu()
+        img = img.to(self.device)
+        z = self.forward(img)
 
         # Make sure to generate
         if self.global_mu is None or self.global_cov is None:
             self.generate_global_dist()
 
+        ### Calculate the Mahalanobis Distance and return it
         # z - z_bar
-        diff = (z - self.global_mu).detach().clone() # 1D vector of size 1 x 768
+        diff = (z - self.global_mu.to(self.device)).detach().clone() # 1D vector of size 1 x 768
         # Shrunk covariance inverse
-        inv = torch.linalg.inv(self.global_cov).detach().clone() # 768 x 768
+        inv = torch.linalg.inv(self.global_cov.to(self.device)).detach().clone() # 768 x 768
 
         # Start calculating distance
         dist = torch.matmul(diff, inv) # output is 1 x 768
         dist = torch.matmul(dist, diff.T) # output is 1 x 1
 
         return dist.sqrt()[0][0].item()
+
+    def save(self, model_path):
+        """
+        Saves the model to disk, as well as memory
+        Args:
+            model_path: a string of the model path
+        Returns:
+        """
+        # Save model dict, based on BaseAnomalyDetector
+        super().save(path=model_path)
+
+        # Find memory path and save memory
+        memory_path = model_path.split("weights")[0] + "memory.pth"
+        # Assumes that self.update_memory() has been called
+        torch.save(self.memory, memory_path)
+
+        return
+
+    def load(self, model_path):
+        """
+        Loads a model from a file, as well as memory
+        Args:
+            model_path: a string of the model path
+
+        Returns:
+
+        """
+        # Load model dict, based on BaseAnomalyDetector
+        super().load(path=model_path)
+
+        # Find memory path and load that as well
+        memory_path = model_path.split("weights")[0] + "memory.pth"
+        self.memory = torch.load(memory_path)
+
+        return
+
+
 
