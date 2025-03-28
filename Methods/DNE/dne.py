@@ -113,7 +113,6 @@ class DNE_Model(BaseAnomalyDetector):
         """
         Updates the long-term memory, M, based on z_epoch,
         which after epoch 50 should be added into memory
-
         z_epoch should be of size (num_task, 768), where
             num_task is the number of samples in the current task
             768 is the ViT latent dimension size, D
