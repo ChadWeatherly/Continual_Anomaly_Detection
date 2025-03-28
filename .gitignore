@@ -1,9 +1,7 @@
 # Dataset and model files
-*.png
-*.jpg
+datasets/magnetic_tile_defects*
+datasets/mvtec_anomaly_detection*
 *.npz
-*.pth
-*.pt
 mvtec_anomaly_detection*
 
 # Byte-compiled / optimized / DLL files
