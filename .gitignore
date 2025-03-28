@@ -1,6 +1,7 @@
 # Dataset and model files
 datasets/magnetic_tile_defects*
 datasets/mvtec_anomaly_detection*
+*.pt*
 *.npz
 mvtec_anomaly_detection*
 
