@@ -177,8 +177,7 @@ class DNE_Model(BaseAnomalyDetector):
         return
 
     def train_one_epoch(self, dataloader, optimizer, criterion,
-                        task_num, results_path=None,
-                        update_z_epoch=False):
+                        task_num, **kwargs):
         """
         Train a model on one epoch.
         Args:
@@ -186,8 +185,8 @@ class DNE_Model(BaseAnomalyDetector):
             optimizer: torch.optim.Optimizer
             criterion: loss function
             task_num: Which task is being trained on, starting at 1
-            results_path: If exists, where we want to save data about the results
-            update_z_epoch: Whether to add the global mean and covariance distribution to the memory
+            kwargs: Additional keyword arguments,
+                - update_z_epoch: Whether to add the global mean and covariance distribution to the memory
 
         Returns: epoch_loss, the total accumulated loss for that epoch
 
@@ -202,7 +201,7 @@ class DNE_Model(BaseAnomalyDetector):
             optimizer.zero_grad()
             imgs = data['image'].to(self.device)
             outputs = self.forward(imgs, head=True,
-                            add_to_z_epoch=update_z_epoch).cpu()
+                            add_to_z_epoch=kwargs.get("update_z_epoch")).cpu()
             labels = torch.tensor(data['label'])
             loss = criterion(outputs, labels)
             loss.backward()

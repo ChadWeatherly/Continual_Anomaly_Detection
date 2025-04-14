@@ -52,11 +52,11 @@ def show(imgs, grid_rows=None, grid_cols=None):
         col = i % grid_cols
 
         # Convert image to PIL and numpy array
-        img_pil = F.to_pil_image(img)
+        img_pil = F.to_pil_image(img[0], mode="L")
         img_array = np.asarray(img_pil)
 
         # Convert mask to PIL and numpy array
-        mask_pil = F.to_pil_image(mask)
+        mask_pil = F.to_pil_image(mask[0], mode="L")
         mask_array = np.asarray(mask_pil)
 
         # Convert to grayscale if needed
