@@ -6,7 +6,7 @@ from IPython.display import clear_output
 from Methods.DNE.dne import DNE_Model
 import datasets
 
-def test_model(model_type: str,
+def eval_model(model_type: str,
                 dataset: str,
                 num_epochs: int,
                 batch_size: int,
@@ -79,6 +79,7 @@ def test_model(model_type: str,
                         task_name += "_"
             model.load(f"./models/{model_type}/{dataset}/{"unsupervised" if unsupervised else "supervised"}/{task_name}_weights.pth")
 
+            # TODO: Finish eval code from here
             prev_tasks = tasks[:(t+1)]
             for e in range(num_epochs):
                 start_time = time.time()
