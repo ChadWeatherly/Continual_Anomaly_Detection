@@ -83,10 +83,10 @@ def train_model(model_type: str,
                                             transform=None,
                                             data_aug=data_aug,
                                             data_aug_params=task)
-                task_name = ""
+                task_name = f"{data_aug}_"
                 for param in task:
-                    task_name += str(param)
-                    if param != tasks[-1]:
+                    task_name += str(param).replace(".", "")
+                    if param != task[-1]:
                         task_name += "_"
 
             dataloader = DataLoader(task_dataset,
@@ -120,7 +120,7 @@ def train_model(model_type: str,
                 curr_epoch_time = time.time() - start_time
 
             # Update current experiment loss with current task_loss list
-            exp_losses[task] = task_loss
+            exp_losses[task_name] = task_loss
 
             if model_type == "DNE":
                 # Save memory distribution for this task in self.memory
@@ -140,18 +140,17 @@ def train_model(model_type: str,
             if dataset == "MVTEC":
                 task_name = task
             elif dataset == "MTD":
-                task_name = ""
+                task_name = f"{data_aug}_"
                 for param in task:
-                    task_name += str(param)
-                    if param != tasks[-1]:
+                    task_name += str(param).replace(".", "")
+                    if param != task[-1]:
                         task_name += "_"
 
-            fig.add_trace(go.Scatter(y=train_task_losses[exp][task],
+            fig.add_trace(go.Scatter(y=train_task_losses[exp][task_name],
                                      mode='lines', name=task_name))
         fig.update_layout(title=f"Epoch Training Loss for {exp} experiment, per task",
                           xaxis_title="Epoch",
                           yaxis_title="Total Loss")
-        fig.write_image(f"./plots/{dataset}/{model_type}/training_loss_{exp}.png")
         fig.show()
 
     return model
