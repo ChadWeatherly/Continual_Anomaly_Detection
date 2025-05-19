@@ -21,12 +21,8 @@ class BaseAnomalyDetector(nn.Module):
     - Memory management for continual learning
     """
     def __init__(self):
-        """Initialize the base anomaly detector.
-
-        Args:
-            backbone (str): Name of the backbone model to use
-            pretrained (bool): Whether to use pretrained weights
-            device (str): Device to use (defaults to best available)
+        """
+        Initialize the base anomaly detector.
         """
         super().__init__()
 
