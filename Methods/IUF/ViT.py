@@ -1,118 +1,325 @@
+"""
+Base ViT class for IUF, used to create the
+discriminator, encoder, and decoder
+
+ViT Block Diagram at bottom of page
+"""
+
+import torch.nn.functional as F
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from einops import rearrange
+from torchvision.models import vit_b_16, ViT_B_16_Weights
 
-class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, dim, num_heads):
-        super(MultiHeadSelfAttention, self).__init__()
-        self.dim = dim
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-
-        assert dim % self.num_heads == 0, "embedding dimension must be divisible by number of heads"
-
-        self.query = nn.Linear(dim, dim)
-        self.key = nn.Linear(dim, dim)
-        self.value = nn.Linear(dim, dim)
-        self.out = nn.Linear(dim, dim)
-
-    def forward(self, x):
-        b, h, w, _ = x.size()
-        
-        q = self.query(x)
-        k = self.key(x)
-        v = self.value(x)
-
-        q = rearrange(q, 'b h w (n d) -> b n h w d', n=self.num_heads)
-        k = rearrange(k, 'b h w (n d) -> b n h w d', n=self.num_heads)
-        v = rearrange(v, 'b h w (n d) -> b n h w d', n=self.num_heads)
-
-        k_T = k.transpose(-2, -1)
-        scores = torch.matmul(q, k_T) / self.head_dim**0.5
-        attention = F.softmax(scores, dim=-1)
-        out = torch.matmul(attention, v)
-
-        out = rearrange(out, 'b n h w d -> b h w (n d)')
-        out = self.out(out)
-        return out
-
-class MLP(nn.Module):
-    def __init__(self, dim, hidden_dim):
-        super(MLP, self).__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, dim),
-        )
-
-    def forward(self, x):
-        x = rearrange(x, 'b h w d -> b (h w) d')
-        x = self.mlp(x)
-        x = rearrange(x, 'b (h w) d -> b h w d', h=int(x.size(1) ** 0.5))
-        return x
-
-class ViTBlock(nn.Module):
-    def __init__(self, dim, num_patches, hidden_dim, num_heads, mlp_dim):
-        super(ViTBlock, self).__init__()
-        self.norm1 = nn.LayerNorm(dim)
-        self.self_attention = MultiHeadSelfAttention(dim, num_heads)
-        self.norm2 = nn.LayerNorm(dim)
-        self.mlp = MLP(dim, mlp_dim)
-
-    def forward(self, x):
-        out = self.self_attention(self.norm1(x))
-        x = x + out
-        x = x + self.mlp(self.norm2(x))
-        return x
-
+# TODO: Implement ViT module based on PyTorch's ViT implementation
 class ViT(nn.Module):
-    def __init__(self, inplanes=3, num_classes=12, hidden_dim=256, num_heads=4, mlp_dim=128):
-        super(ViT, self).__init__()
-        self.patch_size = 1
-        self.num_patches = inplanes * 14 * 14
-        self.embedding_dim = hidden_dim
+    def __init__(self, num_classes=15, embed_dim=768):
+        super().__init__()
 
-        self.conv1 = nn.Conv2d(inplanes, hidden_dim, kernel_size=self.patch_size, stride=1, padding=0, bias=False)
-        self.bn1 = nn.BatchNorm2d(hidden_dim)
-        self.relu = nn.ReLU(inplace=True)
+        # Load the pre-trained ViT
+        base_model = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
 
-        self.vit_blocks = nn.ModuleList([
-            ViTBlock(hidden_dim, self.num_patches, hidden_dim, num_heads, mlp_dim)
-            for _ in range(4)
-        ])
+        # Extract the components you want to reuse
+        self.patch_embedding = base_model.conv_proj
+        self.class_token = base_model.class_token
+        self.position_embedding = base_model.encoder.pos_embedding
 
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, num_classes)
+        # Get the transformer blocks but don't include the final layers
+        self.encoder_blocks = base_model.encoder.layers
+
+        # Define your custom components for IUF
+        # These would implement your Object-Aware Self-Attention, etc.
+        self.discriminator = self._create_discriminator(embed_dim)
+        self.decoder = self._create_decoder(embed_dim)
+
+    def _create_discriminator(self, embed_dim):
+        """Create the discriminator component of IUF"""
+        # Implementation details based on the paper
+        return nn.Sequential(
+            nn.Linear(embed_dim, 512),
+            nn.GELU(),
+            nn.Linear(512, 15)  # Assuming 15 object classes
         )
 
-    def forward(self, x):
-        
-        out = self.conv1(x["image"])
-        out = self.bn1(out)
-        out = self.relu(out)
+    def _create_decoder(self, embed_dim):
+        """Create the decoder component of IUF"""
+        # This would be your reconstruction pathway
+        # Detailed implementation based on the paper
+        # ...
 
-        outputs_map = [] 
-        
-        out = rearrange(out, 'b c h w -> b h w c')
-        for vit_block in self.vit_blocks:
-            out = vit_block(out)
-            outputs_map.append(out)
-        
-        out = rearrange(out, 'b h w c -> b c h w')
+    def forward(self, x, category_label=None):
+        # Process input through patch embedding
+        x = self.patch_embedding(x)
 
-        out = self.avgpool(out)
-        out = out.view(out.size(0), -1)
-        out = self.fc(out)
-        
-        outputs_map = [x.detach() for x in outputs_map]
+        # Add positional embeddings and class token
+        # Similar to original ViT but with your modifications
+
+        # Pass through encoder blocks
+        # This is where you would implement OASA
+
+        # Get embeddings for the discriminator
+        discriminator_output = self.discriminator(encoder_output)
+
+        # Use the embeddings to generate reconstruction
+        # This is where SCL would be applied
+        decoder_output = self.decoder(encoder_output)
+
+        return {
+            "class_prediction": discriminator_output,
+            "reconstruction": decoder_output
+        }
+
+
+"""
+ViT Block Diagram based on forward() method in:
+https://github.com/pytorch/vision/blob/main/torchvision/models/vision_transformer.py#L86
+
+B = Batch Size
+C = Channels
+H = Height
+W = Width
+P = Patch Size
+P×P = P^2 = S =Sequence Length
+hidden_dim = embed_dim = 768
+CLS Token = Class Token
+
+                               ┌────────────────────────────────────────────┐
+                               │              Input Image                   │
+                               │                 (B×C×H×W)                  │
+                               └─────────────────────┬──────────────────────┘
+                                                     │
+                               _process_input()      ▼
+                               ┌────────────────────────────────────────────┐
+                               │          Patch Embedding (conv_proj)       │
+                               │                   Conv2d                   │
+                               |      Outputs patch sequence of size:       |      
+                               │          (B × (P×P) × hidden_dim),         │
+                               └─────────────────────┬──────────────────────┘
+                                                     │
+                                                     ▼
+                              Adding CLS token to sequence embedding
+┌────────────────────────┐    ┌────────────────────────────────────────────┐
+│   Class Token (CLS)    │───►│ Concatenate CLS Token with Patch Embeddings│
+│     (B×1×embed_dim)    │    │           (B×(S+1)×embed_dim)              │
+└────────────────────────┘    └─────────────────────┬──────────────────────┘
+                                                    │
+
+                                                    │
+                                                    ▼
+                               ┌────────────────────────────────────────────┐
+                               │                 Encoder                    │
+┌────────────────────────┐     │                                            │
+│  Position Embeddings   │-───►│    ┌────────────────────────────────┐      │              
+│  (1×(S+1)×embed_dim)   │     │    │    Add Position Embeddings     │      │
+└────────────────────────┘     │    │       (B×(S+1)×embed_dim)      │      │
+                               │    └──────────────┬────────────────-┘      │
+                               │                   │                        │
+                               │                   ▼                        │
+                               │    ┌────────────────────────────────┐      │              
+                               │    │         Add Dropout            │      │
+                               │    └──────────────┬────────────────-┘      │
+                               │                   │                        │
+                               │                   ▼                        │
+                               │    ┌────────────────────────────────┐      │
+                               │    │   Encoder/Transformer Block 1  │      │
+                               │    │  ┌─────────────────────────┐   │      │
+                               │    │  │      Layer Norm 1       │   │      │
+                               │    │  └───────────┬─────────────┘   │      │
+                               │    │              │                 │      │
+                               │    │              ▼                 │      │
+                               │    │  ┌─────────────────────────┐   │      │
+                               │    │  │   Multi-Head Attention  │   │      │
+                               │    │  └───────────┬─────────────┘   │      │
+                               │    │              │                 │      │
+                               │    │              ▼                 │      │
+                               │    │  ┌─────────────────────────┐   │      │
+                               │    │  │   Residual Connection   │   │      │
+                               │    │  └───────────┬─────────────┘   │      │
+                               │    │              │                 │      │
+                               │    │              ▼                 │      │
+                               │    │  ┌─────────────────────────┐   │      │
+                               │    │  │      Layer Norm 2       │   │      │
+                               │    │  └───────────┬─────────────┘   │      │
+                               │    │              │                 │      │
+                               │    │              ▼                 │      │
+                               │    │  ┌─────────────────────────┐   │      │
+                               │    │  │         MLP Block       │   │      │
+                               │    │  │   (Linear→GELU→Linear)  │   │      │
+                               │    │  └───────────┬─────────────┘   │      │
+                               │    │              │                 │      │
+                               │    │              ▼                 │      │
+                               │    │  ┌─────────────────────────┐   │      │
+                               │    │  │   Residual Connection   │   │      │
+                               │    │  └───────────┬─────────────┘   │      │
+                               │    └──────────────┬────────────────-┘      │
+                               │                   │                        │
+                               │                   ▼                        │
+                               │    ┌────────────────────────────── ┐       │
+                               │    │             More              │       │
+                               │    │ Encoder/Transformer Blocks ...│       │
+                               │    │                               │       │
+                               │    └──────────────┬────────────────┘       │
+                               │                   │                        │
+                               │                   ▼                        │
+                               │    ┌────────────────────────────────┐      │
+                               │    │ Encoder/Transformer Block N    │      │
+                               │    │         (Same Structure)       │      │
+                               │    └──────────────┬──────────────── ┘      │
+                               │                   │                        │
+                               │              layer_norm()                  │
+                               │                                            │
+                               │       Output: Same size as input           │
+                               │           (B×(S+1)×embed_dim)              │
+                               └───────────────────┬────────────────────────┘
+                                                   │
+                                                   ▼
+                               ┌────────────────────────────────────────────┐
+                               │        Extract CLS Token Embedding         │
+                               │     from position 0 of the sequence        │
+                               │               (B×embed_dim)                │
+                               └─────────────────────┬──────────────────────┘
+                                                     │
+                                                     ▼
+                               ┌────────────────────────────────────────────┐
+                               │             Classification Head            │
+                               │         Linear→Tanh→Linear → Softmax       │
+                               │              (B×num_classes)               │
+                               └────────────────────────────────────────────┘
+                               
        
-        return {"class_out": out, "outputs_map": outputs_map}
+       
+Detailed Multi-Head Attention Block Diagram below:
+https://docs.pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html
 
-
-# # Instantiate the ViT network with three layers
-# vit_net = ViT(inplanes=64, instrides=None, num_classes=15)
-# print(vit_net)
+S = Sequence Length
+B = Batch Size
+E = Embedding Dimension
+H = Number of attention heads
+D_h = Dimension of each head = E / H
+                       
+                                        ┌───────────────────────────────┐
+                                        │     INPUTS TO FORWARD()       │
+                                        │                               │
+┌───────────────────┐ ┌───────────────┐ │ ┌───────────────┐             │
+│ Query Tensor (Q)  │ │ Key Tensor (K)│ │ │Value Tensor(V)│             │
+│ (S, B, E)         │ │ (S, B, E)     │ │ │ (S, B, E)     │             │
+└─────────┬─────────┘ └───────┬───────┘ │ └───────┬───────┘             │
+          │                   │         │         │                     │
+          │                   │         │         │  ┌─────────────┐    │
+          │                   │         │         │  │ key_padding │    │
+          │                   │         │         │  │    mask     │    │
+          │                   │         │         │  │ (Optional)  │    │
+          │                   │         │         │  └─────┬───────┘    │
+          │                   │         │         │        │            │
+          │                   │         │         │  ┌─────▼───────┐    │
+          │                   │         │         │  │    attn     │    │
+          │                   │         │         │  │    mask     │    │
+          │                   │         │         │  │ (Optional)  │    │
+          │                   │         │         │  └─────────────┘    │
+          │                   │         │         │                     │
+          │                   │         └─────────┼─────────────────────┘
+          │                   │                   │
+          ▼                   ▼                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│                    MULTI-HEAD ATTENTION MECHANISM                       │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                     LINEAR PROJECTIONS                            │  │
+│  │                                                                   │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │  │
+│  │  │  Q_proj(Q)   │  │  K_proj(K)   │  │  V_proj(V)   │             │  │
+│  │  │  Linear Layer│  │  Linear Layer│  │  Linear Layer│             │  │
+│  │  │  E → E       │  │  E → E       │  │  E → E       │             │  │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘             │  │
+│  │         │                 │                 │                     │  │
+│  │         ▼                 ▼                 ▼                     │  │
+│  │  ┌──────────────────────────────────────────────────────────┐     │  │
+│  │  │             RESHAPE INTO MULTIPLE HEADS                  │     │  │
+│  │  │                                                          │     │  │
+│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │     │  │
+│  │  │  │  Q_heads     │  │  K_heads     │  │  V_heads     │    │     │  │
+│  │  │  │              │  │              │  │              │    │     │  │
+│  │  │  │(B, H, S, D_h)│  │(B, H, S, D_h)│  │(B, H, S, D_h)│    │     │  │
+│  │  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │     │  │
+│  │  └─────────┼───────────────┬─┼───────────────┬─┘────────────┘     │  │
+│  └────────────┼───────────────┘ └───────────────┘────────────────────┘  │
+│               │                                 │                       │
+│               │                                 │                       │
+│  ┌────────────▼─────────────────────────────────▼────────────────────┐  │
+│  │                   ATTENTION CALCULATION                           │  │
+│  │                                                                   │  │
+│  │  ┌──────────────────────────────────────────────────────┐         │  │
+│  │  │              SCALED DOT-PRODUCT                      │         │  │
+│  │  │                                                      │         │  │
+│  │  │  attn_weights = matmul(Q_heads, K_heads.transpose)   │         │  │
+│  │  │                / sqrt(D_h)                           │         │  │
+│  │  │                                                      │         │  │
+│  │  │  (B, H, L, S)                                        │         │  │
+│  │  └──────────────────────────┬───────────────────────────┘         │  │
+│  │                             │                                     │  │
+│  │                             ▼                                     │  │
+│  │  ┌──────────────────────────────────────────────────────┐         │  │
+│  │  │              APPLY MASKS (IF ANY)                    │         │  │
+│  │  │                                                      │         │  │
+│  │  │  - Apply key_padding_mask to ignore padded positions │         │  │
+│  │  │  - Apply attn_mask for causal attention if needed    │         │  │
+│  │  │                                                      │         │  │
+│  │  └──────────────────────────┬───────────────────────────┘         │  │
+│  │                             │                                     │  │
+│  │                             ▼                                     │  │
+│  │  ┌──────────────────────────────────────────────────────┐         │  │
+│  │  │                   SOFTMAX                            │         │  │
+│  │  │                                                      │         │  │
+│  │  │  attn_weights = softmax(attn_weights, dim=-1)        │         │  │
+│  │  │                                                      │         │  │
+│  │  └──────────────────────────┬───────────────────────────┘         │  │
+│  │                             │                                     │  │
+│  │                             ▼                                     │  │
+│  │  ┌──────────────────────────────────────────────────────┐         │  │
+│  │  │                   DROPOUT                            │         │  │
+│  │  │                                                      │         │  │
+│  │  │  attn_weights = dropout(attn_weights)                │         │  │
+│  │  │  (B, H, L, S)                                        │         │  │
+│  │  └──────────────────────────┬───────────────────────────┘         │  │
+│  │                             │                                     │  │
+│  │                             │                                     │  │
+│  │                             ▼                                     │  │
+│  │  ┌──────────────────────────────────────────────────────┐         │  │
+│  │  │             APPLY ATTENTION TO VALUES                │         │  │
+│  │  │                                                      │         │  │
+│  │  │  attn_output = matmul(attn_weights, V_heads)         │         │  │
+│  │  │                                                      │         │  │
+│  │  │  (B, H, L, D_h)                                      │         │  │
+│  │  └──────────────────────────┬───────────────────────────┘         │  │
+│  └─────────────────────────────┼─────────────────────────────────────┘  │
+│                                │                                        │
+│                                ▼                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                    OUTPUT PROJECTION                             │   │
+│  │                                                                  │   │
+│  │  ┌──────────────────────────────────────────────────────┐        │   │
+│  │  │            RESHAPE FROM MULTIPLE HEADS                │       │   │
+│  │  │                                                      │        │   │
+│  │  │  attn_output = reshape_and_concat_heads(attn_output) │        │   │
+│  │  │                                                      │        │   │
+│  │  │  (S, B, E)                                           │        │   │
+│  │  └──────────────────────────┬───────────────────────────┘        │   │
+│  │                             │                                    │   │
+│  │                             ▼                                    │   │
+│  │  ┌──────────────────────────────────────────────────────┐        │   │
+│  │  │               OUTPUT LINEAR LAYER                    │        │   │
+│  │  │                                                      │        │   │
+│  │  │  attn_output = out_proj(attn_output)                 │        │   │
+│  │  │                                                      │        │   │
+│  │  │  (S, B, E)                                           │        │   │
+│  │  └──────────────────────────┬───────────────────────────┘        │   │
+│  └─────────────────────────────┼────────────────────────────────────┘   │
+│                                │                                        │
+└────────────────────────────────┼────────────────────────────────────────┘
+                                 │
+                                 ▼
+                          ┌─────────────────┐
+                          │   FINAL OUTPUT  │
+                          │    (S, B, E)    │
+                          └─────────────────┘
+"""
