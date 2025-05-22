@@ -23,20 +23,19 @@ class MultiHeadSelfAttention(nn.Module):
     Multi-head self-attention mechanism that operates on 2D feature maps rather than
     tokenized sequences as in standard ViT implementations.
     """
-    def __init__(self, dim, num_heads):
+    def __init__(self, embed_dim, num_heads):
         super(MultiHeadSelfAttention, self).__init__()
-        self.dim = dim  # Total embedding dimension
         self.num_heads = num_heads  # Number of attention heads
-        self.head_dim = dim // num_heads  # Dimension per head
+        self.head_dim = embed_dim // num_heads  # Dimension per head
 
         # Ensure dimensions are compatible with multi-head mechanism
-        assert dim % self.num_heads == 0, "embedding dimension must be divisible by number of heads"
+        assert embed_dim % self.num_heads == 0, "embedding dimension must be divisible by number of heads"
 
         # Linear projections for query, key, value, and output
-        self.query = nn.Linear(dim, dim)
-        self.key = nn.Linear(dim, dim)
-        self.value = nn.Linear(dim, dim)
-        self.out = nn.Linear(dim, dim)  # Final projection
+        self.query = nn.Linear(embed_dim, embed_dim)
+        self.key = nn.Linear(embed_dim, embed_dim)
+        self.value = nn.Linear(embed_dim, embed_dim)
+        self.out = nn.Linear(embed_dim, embed_dim)  # Final projection
 
     def forward(self, x):
         # x shape: [batch, height, width, embedding_dim]
@@ -48,7 +47,6 @@ class MultiHeadSelfAttention(nn.Module):
         v = self.value(x)  # [b, h, w, dim]
 
         # Reshape for multi-head attention - split embedding dim into num_heads x head_dim
-        # NOTE: This differs from standard ViT which operates on token sequences
         q = rearrange(q, 'b h w (n d) -> b n h w d', n=self.num_heads)  # [b, num_heads, h, w, head_dim]
         k = rearrange(k, 'b h w (n d) -> b n h w d', n=self.num_heads)  # [b, num_heads, h, w, head_dim]
         v = rearrange(v, 'b h w (n d) -> b n h w d', n=self.num_heads)  # [b, num_heads, h, w, head_dim]
@@ -74,21 +72,19 @@ class MLP(nn.Module):
     """
     Multi-Layer Perceptron used in transformer blocks.
     """
-    def __init__(self, dim, hidden_dim):
+    def __init__(self, embed_dim, hidden_dim):
         super(MLP, self).__init__()
         self.mlp = nn.Sequential(
-            nn.Linear(dim, hidden_dim),  # First linear layer
+            nn.Linear(embed_dim, hidden_dim),  # First linear layer
             nn.GELU(),                  # GELU activation as in original transformer
-            nn.Linear(hidden_dim, dim),  # Second linear layer to restore dimensions
+            nn.Linear(hidden_dim, embed_dim),  # Second linear layer to restore dimensions
         )
 
     def forward(self, x):
         # Reshape to [batch, num_tokens, dim] for MLP
-        # NOTE: Assumes height*width = num_tokens and reshapes accordingly
         x = rearrange(x, 'b h w d -> b (h w) d')  # [b, h*w, dim]
         x = self.mlp(x)                          # [b, h*w, dim]
 
-        # POTENTIAL ISSUE: This assumes that h = w = sqrt(h*w), which may not always be true
         # Reshape back to [batch, height, width, dim]
         x = rearrange(x, 'b (h w) d -> b h w d', h=int(x.size(1) ** 0.5))
         return x
@@ -97,14 +93,25 @@ class ViTBlock(nn.Module):
     """
     A single transformer encoder block with self-attention and MLP.
     """
-    def __init__(self, dim, num_patches, hidden_dim, num_heads, mlp_dim):
+    def __init__(self, embed_dim, num_heads):
         super(ViTBlock, self).__init__()
-        self.norm1 = nn.LayerNorm(dim)  # Layer norm before attention
-        self.self_attention = MultiHeadSelfAttention(dim, num_heads)
-        self.norm2 = nn.LayerNorm(dim)  # Layer norm before MLP
-        self.mlp = MLP(dim, mlp_dim)    # MLP block
+        self.norm1 = nn.LayerNorm(embed_dim)  # Layer norm before attention
+
+        # Multi-head self-attention takes in a query, key, and value tensor,
+        # Each of these tensors have shape [Sequence Length/Num Tokens, Embedding Dim]
+
+        # The output is a tensor of the same shape as each of the input tensors (attention scores)
+        # for each token
+        self.self_attention = MultiHeadSelfAttention(embed_dim, num_heads)
+        self.norm2 = nn.LayerNorm(embed_dim)  # Layer norm before MLP
+        self.mlp = MLP(embed_dim, embed_dim)    # MLP block
 
     def forward(self, x):
+        """
+        Takes in a tensor of shape [B x H x W x C]
+        and outputs a tensor of the same shape.
+        """
+        
         # First sub-block: Normalization + Self-Attention + Residual
         out = self.self_attention(self.norm1(x))  # Apply norm, then attention
         x = x + out                             # Residual connection
@@ -115,40 +122,49 @@ class ViTBlock(nn.Module):
 
 class ViT(nn.Module):
     """
-    Modified Vision Transformer that operates on feature maps rather than
-    using the standard patch-embedding approach.
-    """
-    def __init__(self, inplanes=3, num_classes=12, hidden_dim=256, num_heads=4, mlp_dim=128):
-        super(ViT, self).__init__()
-        self.patch_size = 1  # Not actually creating patches - operates directly on pixels
-        self.num_patches = inplanes * 14 * 14  # POSSIBLE ISSUE: This calculation seems arbitrary
-        self.embedding_dim = hidden_dim
+    Modified Vision Transformer that operates on each pixel, as opposed to patches
 
-        # Initial convolutional embedding - more like a CNN than standard ViT
-        self.conv1 = nn.Conv2d(inplanes, hidden_dim, kernel_size=self.patch_size,
-                               stride=1, padding=0, bias=False)
-        self.bn1 = nn.BatchNorm2d(hidden_dim)  # BatchNorm is unusual in ViT (usually uses LayerNorm)
+    All params are the same as original IUF paper, unless otherwise specified.
+    Recall, the embed_dim is split across all heads, so embed_dim % num_heads must be 0.
+    """
+    def __init__(self, in_channels=3,
+                 num_classes=12,
+                 patch_size=1, # Not actually creating patches - operates directly on pixels
+                 embed_dim=64,
+                 num_heads=4):
+        super(ViT, self).__init__()
+        self.patch_size = patch_size
+        self.num_patches = None
+        self.embedding_dim = embed_dim
+
+        # Initial convolutional embedding
+        self.conv1 = nn.Conv2d(in_channels, embed_dim, kernel_size=self.patch_size,
+                               stride=1)
+        self.bn1 = nn.BatchNorm2d(embed_dim)  # BatchNorm is unusual in ViT (usually uses LayerNorm)
         self.relu = nn.ReLU(inplace=True)      # ReLU is also different from standard ViT
 
         # Stack of ViT blocks
         self.vit_blocks = nn.ModuleList([
-            ViTBlock(hidden_dim, self.num_patches, hidden_dim, num_heads, mlp_dim)
+            ViTBlock(embed_dim, num_heads)
             for _ in range(4)  # 4 transformer blocks
         ])
 
         # Classification head
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling
         self.fc = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(embed_dim, embed_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, num_classes)  # Final classification layer
+            nn.Linear(embed_dim, num_classes)  # Final classification layer
         )
 
     def forward(self, x):
+        # Expects images to be of shape (B, 3, 224, 224)
+
         # Extract image from input dictionary
-        out = self.conv1(x["image"])  # [batch, hidden_dim, h, w]
+        out = self.conv1(x)  # (B, embed_dim, 224, 224), so each pixel has its own embedding
         out = self.bn1(out)
         out = self.relu(out)
+        print(1, out.shape)
 
         # Store intermediate outputs for potential visualization or anomaly detection
         outputs_map = []
@@ -156,19 +172,25 @@ class ViT(nn.Module):
         # Rearrange from [batch, channels, height, width] to [batch, height, width, channels]
         # for compatibility with ViT blocks that expect this format
         out = rearrange(out, 'b c h w -> b h w c')
+        print(2, out.shape)
 
         # Pass through transformer blocks
         for vit_block in self.vit_blocks:
-            out = vit_block(out)  # [batch, height, width, hidden_dim]
+            out = vit_block(out)  # [batch, height, width, embed_dim]
             outputs_map.append(out)  # Store intermediate representations
+        print(3, out.shape)
 
         # Rearrange back to [batch, channels, height, width] for CNN-style pooling
         out = rearrange(out, 'b h w c -> b c h w')
+        print(4, out.shape)
 
         # Global average pooling and classification
-        out = self.avgpool(out)  # [batch, hidden_dim, 1, 1]
-        out = out.view(out.size(0), -1)  # [batch, hidden_dim]
+        out = self.avgpool(out)  # [batch, embed_dim, 1, 1]
+        print(5, out.shape)
+        out = out.view(out.size(0), -1)  # [batch, embed_dim]
+        print(6, out.shape)
         out = self.fc(out)  # [batch, num_classes]
+        print(7, out.shape)
 
         # Detach intermediate outputs to prevent gradients from flowing through them
         # This is likely done to save memory when these are used for visualization
@@ -185,7 +207,7 @@ B = Batch Size
 C_in = Channels of input
 H_in = Height of input
 W_in = Width of input
-D_emb = hidden_dim = embedding dimension
+D_emb = embed_dim = embedding dimension
 H_map = Height of feature map
 W_map = Width of feature map
 N_heads = Number of heads in Multi-Head Attention
