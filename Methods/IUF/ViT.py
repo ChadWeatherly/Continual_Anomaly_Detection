@@ -11,6 +11,11 @@ but the paper explicitly shows that ViT's are used for all 3 component models:
 - Decoder
 
 ViT Block Diagram at bottom of page
+
+TODO:
+    - Add option to return intermediate outputs for discriminator
+    - Create output/classification heads for each component model
+    - Create function to return either of the 3 component models
 """
 
 import torch
@@ -40,7 +45,9 @@ class MultiHeadSelfAttention(nn.Module):
         self.query = nn.Linear(embed_dim, embed_dim)
         self.key = nn.Linear(embed_dim, embed_dim)
         self.value = nn.Linear(embed_dim, embed_dim)
+        self.out_proj = nn.Linear(embed_dim, embed_dim)
         self.softmax = nn.Softmax(dim=-1)
+
 
     def forward(self, x):
         # x,q,k,v shape: (B x L x E)
@@ -49,26 +56,27 @@ class MultiHeadSelfAttention(nn.Module):
         k = self.key(x)
         v = self.value(x)
 
-        # Reshape for each head
+        # Reshape for each head, where
+        # n = num_heads, B = batch_size, L = sequence_length, d = head_dim
         q = rearrange(q, 'B L (n d) -> n B L d', n=self.num_heads)
-        k = rearrange(k, 'B L (n d) -> n B L d', n=self.num_heads)
+        k = rearrange(k, 'B L (n d) -> n B d L', n=self.num_heads)
         v = rearrange(v, 'B L (n d) -> n B L d', n=self.num_heads)
 
-        head_attn_scores = []
-        for h in range(self.num_heads):
-            # Vectors of size (B, L, embed_dim)
-            # Represents L = HxW tokens, each of size embed_dim
-            head_q = q[h]
-            head_k = k[h]
-            head_v = v[h]
+        # returns matrix of size (N, B, L, L), where
+        # each row in each LxL matrix is the vector of attention weights for embedding l in L
+        attn_weights = self.softmax(torch.matmul(q, k) / (self.head_dim ** 0.5))
 
-            # returns matrix of size (L x L), where
-            # each row in the matrix is the atten weight
-            attn_weights = self.Softmax(torch.matmul(head_q, head_k.transpose(-2, -1)))
+        # returns matrix of size (N, B, L, d), where
+        # each row in each LxL matrix is the weighted sum of the values for embedding l in L
+        attn_scores = torch.matmul(attn_weights, v)
 
+        # Concatenate heads back together
+        output = rearrange(attn_scores, 'n B L d -> B L (n d)')  # (B, L, E)
 
+        # Apply output projection (common in transformers)
+        output = self.out_proj(output)
 
-        return
+        return output
 
 class ViTBlock(nn.Module):
     """
@@ -76,13 +84,16 @@ class ViTBlock(nn.Module):
     """
     def __init__(self, embed_dim, num_heads):
         super().__init__()
-
-        # Layer norm before attention
         self.norm1 = nn.LayerNorm(embed_dim)
-
-        # Multi-head Self Attention and Final LayerNorm
         self.MHSA = MultiHeadSelfAttention(embed_dim, num_heads)
-        self.norm2 = nn.LayerNorm(embed_dim)  # Layer norm before MLP
+        self.norm2 = nn.LayerNorm(embed_dim)
+
+        # Missing this:
+        self.mlp = nn.Sequential(
+            nn.Linear(embed_dim, 4 * embed_dim),  # Expansion
+            nn.GELU(),                            # Activation
+            nn.Linear(4 * embed_dim, embed_dim)   # Back to original size
+        )
 
     def forward(self, x):
         """
@@ -102,27 +113,41 @@ class ViTBlock(nn.Module):
 # noinspection DuplicatedCode
 class ViT(nn.Module):
     """
-    Modified Vision Transformer that operates on each pixel, as opposed to patches
+    Modified Vision Transformer, where the last layer output is returned, plus intermediary outputs if necessary.
+    The idea is that for each of the 3 ViT's in IUF, they can add their own classification head.
 
     All params are the same as original IUF paper, unless otherwise specified.
     Recall, the embed_dim is split across all heads, so embed_dim % num_heads must be 0.
+
+    Notes:
+        - Added positional encoding to the tokens
+        - Changed BatchNorm to LayerNorm and ReLU to GELU, in accordance with the ViT paper
+        - I noticed that in their Multi-head attention, the authors only work on row-wise attention to simplify
+        their computations, so I am going to operate on patches, as the matrix multiplication is too large.
     """
     def __init__(self, in_channels=3,
-                 output_vec_dim=12,
-                 patch_size=1,  # Not actually creating patches - operates directly on pixels
-                 embed_dim=16,
-                 num_heads=4,
-                 num_layers=4):
+                 patch_size=16, # 224 should be divisible by patch_size
+                 embed_dim=64,
+                 num_heads=4, # SHould be able to take the sqrt easily
+                 num_layers=4,
+                 return_feature_outputs=False):
+
         super().__init__()
+        # Check inputs
+        assert 224 % patch_size == 0, "Image size must be divisible by patch size"
+
+        num_patches = (224 // patch_size)** 2 # 196
+
         self.patch_size = patch_size
-        self.num_patches = None
         self.embedding_dim = embed_dim
 
         # Initial convolutional embedding
         self.conv1 = nn.Conv2d(in_channels,
                                embed_dim,
                                kernel_size=patch_size,
-                               stride=1)
+                               stride=patch_size)
+        # Add learnable positional embeddings
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
         self.ln1 = nn.LayerNorm(embed_dim)
         self.gelu = nn.GELU()
 
@@ -132,46 +157,37 @@ class ViT(nn.Module):
             for _ in range(num_layers)  # 4 transformer blocks
         ])
 
-        # Classification head
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling
-        self.fc = nn.Sequential(
-            nn.Linear(embed_dim, embed_dim),
-            nn.GELU(),
-            nn.Linear(embed_dim, output_vec_dim)  # Final classification layer
-        )
+        self.return_feature_outputs = return_feature_outputs
 
     def forward(self, x):
         # Expects images to be of shape (B, 3, 224, 224)
+        # Outputs either the last or all ViT layers, which will have shape (B, L, E), where
+        # B = batch_size,
+        # L = sequence_length = (224/patch_size)**2 (default L = 14x14 = 196),
+        # E = embed_dim (default is 64)
 
-        # Get image embedding, where
-        # Each pixel = a token
-        out = self.conv1(x)  # (B, embed_dim, 224, 224), so each pixel has its own embedding
+        out = rearrange(self.conv1(x), 'B E PH PW -> B (PH PW) E') # (B, PxP = L, E), so each patch has its own embedding
+        # Add positional embedding
+        out = out + self.pos_embedding
+        # Normalize
         out = self.ln1(out)
         out = self.gelu(out)
-        # Rearrange for passing into ViT Blocks, leaving us with a sequence of tokens
-        out = rearrange(out, 'B D H W -> B (H W) D') # (B, HxW = L, D)
 
         # Store intermediate outputs for potential visualization or anomaly detection
         outputs_map = []
         # Pass through transformer blocks
         for vit_block in self.vit_blocks:
-            out = vit_block(out)  # [batch, height, width, embed_dim]
+            out = vit_block(out)  # [batch, sequence_length, embed_dim]
             outputs_map.append(out)  # Store intermediate representations
-
-        # Rearrange back to [batch, channels, height, width] for CNN-style pooling
-        out = rearrange(out, 'b h w c -> b c h w')
-
-        # Global average pooling and classification
-        out = self.avgpool(out)  # [batch, embed_dim, 1, 1]
-        out = out.view(out.size(0), -1)  # [batch, embed_dim]
-        out = self.fc(out)  # [batch, num_classes]
+        # (B, L, E), where
+        # B = batch_size, L = sequence_length, E = embed_dim
 
         # Detach intermediate outputs to prevent gradients from flowing through them
         # This is likely done to save memory when these are used for visualization
         outputs_map = [x.detach() for x in outputs_map]
 
         # Return dictionary with classification output and feature maps
-        return {"class_out": out, "outputs_map": outputs_map}
+        return outputs_map
 
 
 """
