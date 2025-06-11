@@ -1,18 +1,16 @@
 """
-Tools to create the discriminator network
+Class to create the discriminator network
 """
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from einops import rearrange  # Library for cleaner tensor reshaping operations
+from einops import rearrange
 from ..ViT import ViT
 
 class Discriminator(ViT):
     """
 
     """
-    def __init__(self, output_size=15, **kwargs):
+    def __init__(self, output_size=15, model_path=None, **kwargs):
         super().__init__(**kwargs)
 
         input_dim = (self.patch_dim ** 2) * self.embedding_dim
@@ -22,6 +20,19 @@ class Discriminator(ViT):
             nn.GELU(),
             nn.Linear(input_dim*4, output_size)
         )
+
+        # If needed, it can load weights on initialization
+        if model_path is not None:
+            self.load(model_path)
+        return
+
+    def save(self, model_path):
+        super().save(model_path)
+        return
+
+    def load(self, model_path):
+        super().load(model_path)
+        return
 
     def forward(self, x, return_features=False):
         # Takes in image input of size (B, 3, 224, 224)

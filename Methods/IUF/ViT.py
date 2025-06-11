@@ -13,9 +13,11 @@ but the paper explicitly shows that ViT's are used for all 3 component models:
 ViT Block Diagram at bottom of page
 
 TODO:
-    - Add option to return intermediate outputs for discriminator
+    - Finish oasa_features implementation in ViT
+    - Finish Encoder
+        - Add in latent space regularization (IUF section 4.2)
+    - Finish Decoder
     - Create output/classification heads for each component model
-    - Create function to return either of the 3 component models
 """
 
 import torch
@@ -157,7 +159,39 @@ class ViT(nn.Module):
             for _ in range(num_layers)  # 4 transformer blocks
         ])
 
-    def forward(self, x, return_features=False):
+    def save(self, path):
+        """
+        Saves the model to disk.
+        Args:
+            path: path to save the model to.
+        """
+        torch.save(self.state_dict(), path)
+        return
+
+    def load(self, path):
+        """
+        Loads the model from disk.
+        Args:
+            path: path to load the model from.
+        """
+        self.load_state_dict(torch.load(path))
+        return
+
+    def forward(self, x, return_features=False, oasa_features=None):
+        """
+        Takes in an image tensor of shape [B x 3 x 224 x 224].
+        ** If return_features==True, oasa_features must be None
+        ** If oasa_features is not none, return features must be False.
+        Args:
+            x: image tensor of shape [B x 3 x 224 x 224]
+            return_features: Bool, whether to return a list of the intermediate features.
+                                If false, returns the final layer output. Each layer's output
+                                is a tensor of shape [B x sequence_length x embed_dim]
+            oasa_features: a list of detached tensors from the discriminator
+
+        Returns:
+
+        """
         # Expects images to be of shape (B, 3, 224, 224)
         # Outputs either the last or all ViT layers, which will have shape (B, L, E), where
         # B = batch_size,
