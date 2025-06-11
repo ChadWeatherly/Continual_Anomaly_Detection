@@ -128,9 +128,8 @@ class ViT(nn.Module):
     def __init__(self, in_channels=3,
                  patch_size=16, # 224 should be divisible by patch_size
                  embed_dim=64,
-                 num_heads=4, # SHould be able to take the sqrt easily
-                 num_layers=4,
-                 return_feature_outputs=False):
+                 num_heads=4, # Should be able to take the sqrt easily
+                 num_layers=4):
 
         super().__init__()
         # Check inputs
@@ -158,9 +157,7 @@ class ViT(nn.Module):
             for _ in range(num_layers)  # 4 transformer blocks
         ])
 
-        self.return_feature_outputs = return_feature_outputs
-
-    def forward(self, x):
+    def forward(self, x, return_features=False):
         # Expects images to be of shape (B, 3, 224, 224)
         # Outputs either the last or all ViT layers, which will have shape (B, L, E), where
         # B = batch_size,
@@ -176,18 +173,18 @@ class ViT(nn.Module):
 
         # Store intermediate outputs for potential visualization or anomaly detection
         # return_feature_outputs adds outputs of all layers
-        if self.return_feature_outputs:
+        if return_features:
             features = []
         # Pass through transformer blocks
         for vit_block in self.vit_blocks:
             out = vit_block(out)  # [batch, sequence_length, embed_dim]
-            if self.return_feature_outputs:
+            if return_features:
                 features.append(out.detach())  # Store intermediate representations
         # layer output = (B, L, E), where
         # B = batch_size, L = sequence_length, E = embed_dim
 
         # Return output
-        if self.return_feature_outputs:
-            return out, features
+        if return_features:
+            return features
         else:
             return out
