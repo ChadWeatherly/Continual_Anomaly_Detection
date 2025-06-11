@@ -136,7 +136,8 @@ class ViT(nn.Module):
         # Check inputs
         assert 224 % patch_size == 0, "Image size must be divisible by patch size"
 
-        num_patches = (224 // patch_size)** 2 # 196
+        self.patch_dim = 224 // patch_size
+        num_patches = (self.patch_dim)** 2 # 196
 
         self.patch_size = patch_size
         self.embedding_dim = embed_dim
@@ -174,236 +175,19 @@ class ViT(nn.Module):
         out = self.gelu(out)
 
         # Store intermediate outputs for potential visualization or anomaly detection
-        outputs_map = []
+        # return_feature_outputs adds outputs of all layers
+        if self.return_feature_outputs:
+            features = []
         # Pass through transformer blocks
         for vit_block in self.vit_blocks:
             out = vit_block(out)  # [batch, sequence_length, embed_dim]
-            outputs_map.append(out)  # Store intermediate representations
-        # (B, L, E), where
+            if self.return_feature_outputs:
+                features.append(out.detach())  # Store intermediate representations
+        # layer output = (B, L, E), where
         # B = batch_size, L = sequence_length, E = embed_dim
 
-        # Detach intermediate outputs to prevent gradients from flowing through them
-        # This is likely done to save memory when these are used for visualization
-        outputs_map = [x.detach() for x in outputs_map]
-
-        # Return dictionary with classification output and feature maps
-        return outputs_map
-
-
-"""
-ViT Block Diagram based on author implemented method
-
-B = Batch Size
-C_in = Channels of input
-H_in = Height of input
-W_in = Width of input
-D_emb = embed_dim = embedding dimension
-H_map = Height of feature map
-W_map = Width of feature map
-N_heads = Number of heads in Multi-Head Attention
-mlpp_dim = MLP dimension
-N_blocks = Number of Transformer Blocks
-N_classes = Number of classes
-
-                               ┌────────────────────────────────────────────┐
-                               │              Input Image (`x["image"]`)    │
-                               │             (B × C_in × H_in × W_in)       │
-                               └─────────────────────┬──────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌────────────────────────────────────────────┐
-                               │      Initial Convolutional Embedding       │
-                               │                                            │
-                               │ 1. `conv1 = Conv2d(C_in, D_emb, ks=1)`     │
-                               │    Output: (B × D_emb × H_map × W_map)     │
-                               │ 2. `ln1 = LayerNorm2d(D_emb)`              │
-                               │ 3. `relu = ReLU()`                         │
-                               │    Output: (B × D_emb × H_map × W_map)     │
-                               └─────────────────────┬──────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌────────────────────────────────────────────┐
-                               │      Reshape for ViT Blocks (einops)       │
-                               │ `rearrange(out, 'b c h w -> b h w c')`     │
-                               │  Output: (B × H_map × W_map × D_emb)       │
-                               └─────────────────────┬──────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌──────────────────────────────────────────────┐
-                               │                 ViT Blocks                   │
-                               │      (Process data in B H W D_emb format)    │
-                               │                                              │
-                               │    ┌──────────────────────────────────┐      │
-                               │    │        ViT Block 1 of N_blocks   │      │
-                               │    │  (Input: B × H_map × W_map × D_emb)│    │
-                               │    │                                  │      │
-                               │    │  ┌───────────────────────────┐   │      │
-                               │    │  │  LayerNorm1 (on D_emb)    │   │      │
-                               │    │  └────────────┬──────────────┘   │      │
-                               │    │               │                  │      │
-                               │    │               ▼                  │      │
-                               │    │  ┌───────────────────────────┐   │      │
-                               │    │  │ MultiHeadSelfAttention    │   │      │
-                               │    │  │ (Custom: Spatial Attention) │ │      │
-                               │    │  │  Input: B H_map W_map D_emb │ │      │
-                               │    │  │  Output: B H_map W_map D_emb│ │      │
-                               │    │  └────────────┬──────────────┘   │      │
-                               │    │               │ Add              │      │
-                               │    │               └─────►Residual 1  │      │
-                               │    │                          │       │      │
-                               │    │                          ▼       │      │
-                               │    │  ┌───────────────────────────┐   │      │
-                               │    │  │  LayerNorm2 (on D_emb)    │   │      │
-                               │    │  └────────────┬──────────────┘   │      │
-                               │    │               │                  │      │
-                               │    │               ▼                  │      │
-                               │    │  ┌───────────────────────────┐   │      │
-                               │    │  │         MLP Block         │   │      │
-                               │    │  │ Input: B H_map W_map D_emb│   │      │
-                               │    │  │---------------------------│   │      │
-                               │    │  │ Reshape: B H W D -> B (HW) D│ │      │
-                               │    │  │ Linear(D_emb, mlp_dim)    │   │      │
-                               │    │  │ GELU()                    │   │      │
-                               │    │  │ Linear(mlp_dim, D_emb)    │   │      │
-                               │    │  │ Reshape: B (HW) D -> B H W D│ │      │
-                               │    │  │ (Note: Assumes H_map=W_map  │ │      │
-                               │    │  │  for unflattening in code)│   │      │
-                               │    │  │ Output: B H_map W_map D_emb│  │      │
-                               │    │  └────────────┬──────────────┘   │      │
-                               │    │               │ Add              │      │
-                               │    │               └─────►Residual 2  │      │
-                               │    │                          │       │      │
-                               │    │                          ▼       │      │
-                               │    │ Output: (B × H_map × W_map × D_emb)│    │
-                               │    └──────────────────────────────────┘      │
-                               │                   │                          │
-                               │                   ▼                          │
-                               │    ┌────────────────────────────────┐        │
-                               │    │ More ViT Blocks (2 to N_blocks)│        │
-                               │    │      (Same Structure)          │        │
-                               │    └────────────────────────────────┘        │
-                               │                   │                          │
-                               │                   ▼                          │
-                               │ Output after N_blocks: (B×H_map×W_map×D_emb) │
-                               └─────────────────────┬────────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌────────────────────────────────────────────┐
-                               │     Reshape for Pooling/Classification     │
-                               │ `rearrange(out, 'b h w c -> b c h w')`     │
-                               │  Output: (B × D_emb × H_map × W_map)       │
-                               └─────────────────────┬──────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌────────────────────────────────────────────┐
-                               │          Global Average Pooling            │
-                               │  `AdaptiveAvgPool2d((1, 1))`               │
-                               │  Output: (B × D_emb × 1 × 1)               │
-                               └─────────────────────┬──────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌────────────────────────────────────────────┐
-                               │           Flatten for Classifier           │
-                               │      `out.view(out.size(0), -1)`           │
-                               │        Output: (B × D_emb)                 │
-                               └─────────────────────┬──────────────────────┘
-                                                     │
-                                                     ▼
-                               ┌────────────────────────────────────────────┐
-                               │             Classification Head (`fc`)     │
-                               │                                            │
-                               │ 1. `Linear(D_emb, D_emb)`                  │
-                               │ 2. `ReLU()`                                │
-                               │ 3. `Linear(D_emb, N_classes)`              │
-                               │                                            │
-                               │  Output (`class_out`): (B × N_classes)     │
-                               └────────────────────────────────────────────┘
-
-                               
-       
-       
-Detailed Multi-Head Attention Block Diagram below:
-https://docs.pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html
-
-B = Batch Size
-H_map = Height of the input feature map
-W_map = Width of the input feature map
-D_emb = dim = Embedding Dimension
-N_h = num_heads = Number of attention heads
-D_h = head_dim = D_emb / N_h = Dimension of each attention head
-                       
-                               ┌──────────────────────────────────┐
-                               │ Input Feature Map (x)            │
-                               │   [B, H_map, W_map, D_emb]       │
-                               └─────────────────┬────────────────┘
-                                                 │
-                                                 ▼
-                     ┌───────────────────────────────────────────────┐
-                     │     Linear Projections (Query, Key, Value)    │
-                     │                                               │
-                     │ q = self.query(x)  -> [B, H_map, W_map, D_emb]│
-                     │ k = self.key(x)    -> [B, H_map, W_map, D_emb]│
-                     │ v = self.value(x)  -> [B, H_map, W_map, D_emb]│
-                     └───────────┬───────────┬───────────┬───────────┘
-                                 │ (q)       │ (k)       │ (v)
-                                 ▼           ▼           ▼
-              ┌───────────────────────────────────────────────────────────┐
-              │ Reshape for Multi-Head Attention (using einops.rearrange) │
-              │                                                           │
-              │ q_h = rearrange(q, 'b hm wm (nh dh) -> b nh hm wm dh')     │
-              │       Shape: [B, N_h, H_map, W_map, D_h]                  │
-              │                                                           │
-              │ k_h = rearrange(k, 'b hm wm (nh dh) -> b nh hm wm dh')     │
-              │       Shape: [B, N_h, H_map, W_map, D_h]                  │
-              │                                                           │
-              │ v_h = rearrange(v, 'b hm wm (nh dh) -> b nh hm wm dh')     │
-              │       Shape: [B, N_h, H_map, W_map, D_h]                  │
-              └────────────────────┬───────────────────┬──────────────────┘
-                                   │ (q_h)             │ (k_h)       │ (v_h)
-                                   ▼                   ▼             |
-              ┌─────────────────────────────────────────────────────┐ |
-              │          Scaled Dot-Product Attention               │ |
-              │ (Calculated for each head and each H_map position)  │ |
-              │                                                     │ |
-              │ 1. Transpose Key:                                   │ |
-              │    k_h_T = k_h.transpose(-2, -1)                    │ |
-              │            Shape: [B, N_h, H_map, D_h, W_map]       │ |
-              │                                                     │ |
-              │ 2. Matmul Q and K_T:                                │ |
-              │    scores = matmul(q_h, k_h_T)                      │ |
-              │             Shape: [B, N_h, H_map, W_map, W_map]    │ |
-              │                                                     │ |
-              │ 3. Scale Scores:                                    │ |
-              │    scores = scores / sqrt(D_h)                      │ |
-              │                                                     │ |
-              │ 4. Softmax:                                         │ |
-              │    attn_weights = softmax(scores, dim=-1)           │ |
-              │                 Shape: [B, N_h, H_map, W_map, W_map]│ |
-              └────────────────────┬────────────────────────────────┘ |
-                                   │ (attn_weights)                   │ (v_h)
-                                   ▼                                  ▼
-              ┌───────────────────────────────────────────────────────────┐
-              │             Apply Attention Weights to Values             │
-              │                                                           │
-              │ weighted_v = matmul(attn_weights, v_h)                    │
-              │              Shape: [B, N_h, H_map, W_map, D_h]           │
-              └────────────────────┬──────────────────────────────────────┘
-                                   │
-                                   ▼
-              ┌───────────────────────────────────────────────────────────┐
-              │      Reshape and Concatenate Heads (einops.rearrange)     │
-              │                                                           │
-              │ out_concat = rearrange(weighted_v, 'b nh hm wm dh -> b hm wm (nh dh)')│
-              │              Shape: [B, H_map, W_map, D_emb]              │
-              └────────────────────┬──────────────────────────────────────┘
-                                   │
-                                   ▼
-                           ┌──────────────────────────────────┐
-                           │      Final Linear Projection     │
-                           │                                  │
-                           │ output = self.out(out_concat)    │
-                           │        Shape: [B, H_map, W_map, D_emb]│
-                           └──────────────────────────────────┘
-
-
-"""
+        # Return output
+        if self.return_feature_outputs:
+            return out, features
+        else:
+            return out
