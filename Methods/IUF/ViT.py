@@ -17,7 +17,7 @@ TODO:
     - Finish Encoder
         - Add in latent space regularization (IUF section 4.2)
     - Finish Decoder
-    - Create output/classification heads for each component model
+    - Add gradient weight update (IUF section 4.3)
 """
 
 import torch
@@ -51,8 +51,8 @@ class MultiHeadSelfAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
 
-    def forward(self, x):
-        # x,q,k,v shape: (B x L x E)
+    def forward(self, x, oasa_features):
+        # x,oasa_features,q,k,v shape: (B x L x E)
         # Linear projections
         q = self.query(x)
         k = self.key(x)
@@ -97,14 +97,14 @@ class ViTBlock(nn.Module):
             nn.Linear(4 * embed_dim, embed_dim)   # Back to original size
         )
 
-    def forward(self, x):
+    def forward(self, x, oasa_features=None):
         """
         Takes in a tensor of shape [B x L x embed_dim]
         and outputs a tensor of the same shape.
         """
         
         # First sub-block: Normalization + Self-Attention + Residual
-        out = self.MHSA(self.norm1(x))  # Apply norm, then Multi-head Self Attention
+        out = self.MHSA(self.norm1(x), oasa_features)  # Apply norm, then Multi-head Self Attention
         x = x + out                             # Residual connection
 
         # Second sub-block: Normalization + MLP + Residual
@@ -158,6 +158,7 @@ class ViT(nn.Module):
             ViTBlock(embed_dim, num_heads)
             for _ in range(num_layers)  # 4 transformer blocks
         ])
+        self.num_layers = num_layers
 
     def save(self, path):
         """
@@ -210,8 +211,13 @@ class ViT(nn.Module):
         if return_features:
             features = []
         # Pass through transformer blocks
-        for vit_block in self.vit_blocks:
-            out = vit_block(out)  # [batch, sequence_length, embed_dim]
+        for l in range(self.num_layers):
+            vit_block =self.vit_blocks[l]
+
+            if (oasa_features is not None) and (l != self.num_layers - 1):
+                out = vit_block(out, oasa_features[l])  # [batch, sequence_length, embed_dim]
+            else:
+                out = vit_block(out)
             if return_features:
                 features.append(out.detach())  # Store intermediate representations
         # layer output = (B, L, E), where

@@ -20,8 +20,9 @@ class Encoder(ViT):
         # As well as the oasa_features produced from the discriminator
         # Returns either the features list or the final output
 
-        out = super().forward(x, oasa_features=oasa_features)
+        out = super().forward(x, return_features=False, oasa_features=oasa_features)
         # out, and all tensors in features, have shape (B, L, E)
         # where
         # - L = sequence length = num_patches
         # - E = embedding_dimension = 64 (default)
+        return out
