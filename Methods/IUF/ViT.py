@@ -51,15 +51,17 @@ class MultiHeadSelfAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
 
-    def forward(self, x, oasa_features):
+    def forward(self, x, oasa_features=None):
         # x,oasa_features,q,k,v shape: (B x L x E)
         # Linear projections
         q = self.query(x)
+        # Use Hadamard product with OASA features, if not None
+        if oasa_features is not None:
         k = self.key(x)
         v = self.value(x)
 
         # Reshape for each head, where
-        # n = num_heads, B = batch_size, L = sequence_length, d = head_dim
+        # B = batch_size, L = sequence_length, n = num_heads, d = head_dim
         q = rearrange(q, 'B L (n d) -> n B L d', n=self.num_heads)
         k = rearrange(k, 'B L (n d) -> n B d L', n=self.num_heads)
         v = rearrange(v, 'B L (n d) -> n B L d', n=self.num_heads)
@@ -206,18 +208,19 @@ class ViT(nn.Module):
         out = self.ln1(out)
         out = self.gelu(out)
 
-        # Store intermediate outputs for potential visualization or anomaly detection
+        # Store intermediate outputs for OASA features
         # return_feature_outputs adds outputs of all layers
         if return_features:
             features = []
         # Pass through transformer blocks
         for l in range(self.num_layers):
-            vit_block =self.vit_blocks[l]
+            vit_block = self.vit_blocks[l]
 
             if (oasa_features is not None) and (l != self.num_layers - 1):
                 out = vit_block(out, oasa_features[l])  # [batch, sequence_length, embed_dim]
             else:
                 out = vit_block(out)
+
             if return_features:
                 features.append(out.detach())  # Store intermediate representations
         # layer output = (B, L, E), where
