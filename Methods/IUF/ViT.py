@@ -57,6 +57,7 @@ class MultiHeadSelfAttention(nn.Module):
         q = self.query(x)
         # Use Hadamard product with OASA features, if not None
         if oasa_features is not None:
+            q = q * oasa_features
         k = self.key(x)
         v = self.value(x)
 

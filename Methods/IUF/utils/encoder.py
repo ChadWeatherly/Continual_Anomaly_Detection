@@ -15,6 +15,14 @@ class Encoder(ViT):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    def save(self, model_path):
+        super().save(model_path)
+        return
+
+    def load(self, model_path):
+        super().load(model_path)
+        return
+
     def forward(self, x, oasa_features):
         # Takes in image input of size (B, 3, 224, 224)
         # As well as the oasa_features produced from the discriminator
