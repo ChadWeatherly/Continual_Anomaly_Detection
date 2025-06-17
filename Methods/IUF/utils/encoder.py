@@ -15,22 +15,30 @@ class Encoder(ViT):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def save(self, model_path):
-        super().save(model_path)
-        return
-
-    def load(self, model_path):
-        super().load(model_path)
-        return
-
     def forward(self, x, oasa_features):
         # Takes in image input of size (B, 3, 224, 224)
         # As well as the oasa_features produced from the discriminator
         # Returns either the features list or the final output
 
-        out = super().forward(x, return_features=False, oasa_features=oasa_features)
+        # Producing latent encoding, z
+        out = super().forward(x, oasa_features=oasa_features)
         # out, and all tensors in features, have shape (B, L, E)
         # where
-        # - L = sequence length = num_patches
+        # - L = sequence length = num_patches = patch_size**2 = 196 (default)
         # - E = embedding_dimension = 64 (default)
-        return out
+
+        # Re-arrange back into patch format, (B x E x P_d x P_d), for aggregation
+        z = rearrange(out, 'B (Ph Pw) E -> B E Ph Pw', Ph=self.patch_dim)
+
+        # Aggregates each patch by taking the mean of that patch
+        m_hat = torch.mean(z, dim=(2,3))
+        # Returns m_hat of size (B, E), where the E = embedding dimension
+        # is treated as the number of channels
+
+        # Take SVD
+        u, s, v = torch.linalg.svd(m_hat)
+        # u = (B, B)
+        # s = (B) = singular values
+        # v = (E, E)
+
+        return out, u, s, v

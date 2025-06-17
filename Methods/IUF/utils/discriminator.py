@@ -26,27 +26,19 @@ class Discriminator(ViT):
             self.load(model_path)
         return
 
-    def save(self, model_path):
-        super().save(model_path)
-        return
-
-    def load(self, model_path):
-        super().load(model_path)
-        return
-
-    def forward(self, x, return_features=False):
+    def forward(self, x, return_features=True):
         # Takes in image input of size (B, 3, 224, 224)
         # Returns either the features list or the final output
 
-        out = super().forward(x, return_features=return_features)
+        features, out = super().forward(x, return_features=return_features)
         # out, and all tensors in features, have shape (B, L, E)
         # where
         # - L = sequence length = num_patches
         # - E = embedding_dimension = 64 (default)
 
-        if not return_features:
-            # Re-arrange for MLP
-            out = rearrange(out, 'B L E -> B (L E)')
-            out = self.mlp(out)
+        # Re-arrange for MLP
+        out = rearrange(out, 'B L E -> B (L E)')
+        out = self.mlp(out)
+        # Outputs (B, num_classes)
 
-        return out
+        return features, out

@@ -10,13 +10,7 @@ but the paper explicitly shows that ViT's are used for all 3 component models:
 - Encoder
 - Decoder
 
-ViT Block Diagram at bottom of page
-
 TODO:
-    - Finish oasa_features implementation in ViT
-    - Finish Encoder
-        - Add in latent space regularization (IUF section 4.2)
-    - Finish Decoder
     - Add gradient weight update (IUF section 4.3)
 """
 
@@ -38,7 +32,7 @@ class MultiHeadSelfAttention(nn.Module):
         assert embed_dim % num_heads == 0, "embedding dimension must be divisible by number of heads"
 
         self.num_heads = num_heads  # Number of attention heads
-        self.head_dim = embed_dim // num_heads  # Dimension per head
+        self.embed_dim = embed_dim // num_heads
 
         # Linear projections for query, key, value
         # Maintains input shape, but gives each pixel its own transformation
@@ -69,7 +63,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         # returns matrix of size (N, B, L, L), where
         # each row in each LxL matrix is the vector of attention weights for embedding l in L
-        attn_weights = self.softmax(torch.matmul(q, k) / (self.head_dim ** 0.5))
+        attn_weights = self.softmax(torch.matmul(q, k) / (self.embed_dim ** 0.5))
 
         # returns matrix of size (N, B, L, d), where
         # each row in each LxL matrix is the weighted sum of the values for embedding l in L
@@ -141,7 +135,7 @@ class ViT(nn.Module):
         assert 224 % patch_size == 0, "Image size must be divisible by patch size"
 
         self.patch_dim = 224 // patch_size
-        num_patches = (self.patch_dim)** 2 # 196
+        self.num_patches = (self.patch_dim)** 2 # 196
 
         self.patch_size = patch_size
         self.embedding_dim = embed_dim
@@ -152,7 +146,7 @@ class ViT(nn.Module):
                                kernel_size=patch_size,
                                stride=patch_size)
         # Add learnable positional embeddings
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, embed_dim) * 0.02)
+        self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches, embed_dim) * 0.02)
         self.ln1 = nn.LayerNorm(embed_dim)
         self.gelu = nn.GELU()
 
@@ -163,34 +157,22 @@ class ViT(nn.Module):
         ])
         self.num_layers = num_layers
 
-    def save(self, path):
+    def forward(self,
+                x=None,
+                z=None,
+                return_features=False,
+                oasa_features=None):
         """
-        Saves the model to disk.
-        Args:
-            path: path to save the model to.
-        """
-        torch.save(self.state_dict(), path)
-        return
-
-    def load(self, path):
-        """
-        Loads the model from disk.
-        Args:
-            path: path to load the model from.
-        """
-        self.load_state_dict(torch.load(path))
-        return
-
-    def forward(self, x, return_features=False, oasa_features=None):
-        """
-        Takes in an image tensor of shape [B x 3 x 224 x 224].
+        Takes in an image tensor of shape [B x 3 x 224 x 224] or [B x L x E].
         ** If return_features==True, oasa_features must be None
         ** If oasa_features is not none, return features must be False.
         Args:
             x: image tensor of shape [B x 3 x 224 x 224]
+            z: ViT latent space outputs of shape [B x L x embed_dim]
             return_features: Bool, whether to return a list of the intermediate features.
-                                If false, returns the final layer output. Each layer's output
-                                is a tensor of shape [B x sequence_length x embed_dim]
+                                If false, returns only the final layer output. Each layer's output
+                                is a tensor of shape [B x sequence_length x embed_dim].
+                                Only used for discriminator
             oasa_features: a list of detached tensors from the discriminator
 
         Returns:
@@ -202,7 +184,11 @@ class ViT(nn.Module):
         # L = sequence_length = (224/patch_size)**2 (default L = 14x14 = 196),
         # E = embed_dim (default is 64)
 
-        out = rearrange(self.conv1(x), 'B E PH PW -> B (PH PW) E') # (B, PxP = L, E), so each patch has its own embedding
+        if z is None:
+            assert x is not None, "x and z cannot both be none"
+            out = rearrange(self.conv1(x), 'B E PH PW -> B (PH PW) E') # (B, PxP = L, E), so each patch has its own embedding
+        else:
+            out = z
         # Add positional embedding
         out = out + self.pos_embedding
         # Normalize
@@ -229,6 +215,6 @@ class ViT(nn.Module):
 
         # Return output
         if return_features:
-            return features
+            return features, out
         else:
             return out

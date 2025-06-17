@@ -7,12 +7,7 @@ import numpy as np
 from torchvision.models.vision_transformer import vit_b_16
 from Methods import BaseAnomalyDetector
 
-"""
-Algorithm Notes
 
-Currently, we want to have one ViT class that we build on from the torchvision version.
-From there, we will add methods to create the discriminator, encoder, and decoder.
-"""
 
 class IUF_Model(BaseAnomalyDetector):
     """
