@@ -38,3 +38,4 @@ class Decoder(ViT):
         # (B, 3, 224, 224)
 
         return x_recon
+

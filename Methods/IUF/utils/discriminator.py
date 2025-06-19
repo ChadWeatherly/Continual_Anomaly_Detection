@@ -10,7 +10,7 @@ class Discriminator(ViT):
     """
 
     """
-    def __init__(self, output_size=15, model_path=None, **kwargs):
+    def __init__(self, output_size=15, **kwargs):
         super().__init__(**kwargs)
 
         input_dim = (self.patch_dim ** 2) * self.embedding_dim
@@ -20,11 +20,6 @@ class Discriminator(ViT):
             nn.GELU(),
             nn.Linear(input_dim*4, output_size)
         )
-
-        # If needed, it can load weights on initialization
-        if model_path is not None:
-            self.load(model_path)
-        return
 
     def forward(self, x, return_features=True):
         # Takes in image input of size (B, 3, 224, 224)

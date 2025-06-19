@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 import plotly.graph_objects as go
 from IPython.display import clear_output
 from Methods.DNE.dne import DNE_Model
+from Methods.IUF.iuf import IUF_Model, IUF_Loss
 import datasets
 
 def eval_model(model_type: str,
@@ -71,7 +72,7 @@ def eval_model(model_type: str,
                     case "DNE":
                         model = DNE_Model()
                     case "IUF":
-                        pass
+                        model = IUF_Model()
                     case "CAD":
                         pass
 

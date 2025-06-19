@@ -30,15 +30,15 @@ class Encoder(ViT):
         # Re-arrange back into patch format, (B x E x P_d x P_d), for aggregation
         z = rearrange(out, 'B (Ph Pw) E -> B E Ph Pw', Ph=self.patch_dim)
 
-        # Aggregates each patch by taking the mean of that patch
+        # Aggregates each patch by taking the mean of that patch, across all channels
         m_hat = torch.mean(z, dim=(2,3))
         # Returns m_hat of size (B, E), where the E = embedding dimension
         # is treated as the number of channels
 
         # Take SVD
         u, s, v = torch.linalg.svd(m_hat)
-        # u = (B, B)
+        # u = (B, B), basis for batch space (not used)
         # s = (B) = singular values
-        # v = (E, E)
+        # v = (E, E), basis for channel space
 
         return out, u, s, v
