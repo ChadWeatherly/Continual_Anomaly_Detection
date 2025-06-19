@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import plotly.graph_objects as go
 from IPython.display import clear_output
 from Methods.DNE.dne import DNE_Model
-from Methods.IUF.iuf_model import IUF_Model, IUF_Loss
+from Methods.IUF.iuf import IUF_Model, IUF_Loss
 import datasets
 
 def train_model(model_type: str,

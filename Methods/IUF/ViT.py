@@ -124,11 +124,14 @@ class ViT(nn.Module):
         - I noticed that in their Multi-head attention, the authors only work on row-wise attention to simplify
         their computations, so I am going to operate on patches, as the matrix multiplication is too large.
     """
-    def __init__(self, in_channels=3,
+    def __init__(self,
+                 device,
+                 in_channels=3,
                  patch_size=16, # 224 should be divisible by patch_size
                  embed_dim=64,
                  num_heads=4, # Should be able to take the sqrt easily
-                 num_layers=4):
+                 num_layers=4
+                 ):
 
         super().__init__()
         # Check inputs
@@ -156,6 +159,8 @@ class ViT(nn.Module):
             for _ in range(num_layers)  # 4 transformer blocks
         ])
         self.num_layers = num_layers
+        self.to(device)
+        self.device = device
 
     def forward(self,
                 x=None,

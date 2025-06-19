@@ -20,7 +20,7 @@ class Decoder(ViT):
             out_channels=3,                  # RGB channels
             kernel_size=self.patch_size,     # 16
             stride=self.patch_size           # 16
-        )
+        ).to(self.device)
 
         return
 

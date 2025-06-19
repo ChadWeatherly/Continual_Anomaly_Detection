@@ -19,7 +19,7 @@ class Discriminator(ViT):
             nn.Linear(input_dim, input_dim*4),
             nn.GELU(),
             nn.Linear(input_dim*4, output_size)
-        )
+        ).to(self.device)
 
     def forward(self, x, return_features=True):
         # Takes in image input of size (B, 3, 224, 224)

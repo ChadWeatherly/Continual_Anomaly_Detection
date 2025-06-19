@@ -6,6 +6,9 @@ import torch.nn.functional as F
 import numpy as np
 from torchvision.models.vision_transformer import vit_b_16
 from Methods import BaseAnomalyDetector
+from Methods.IUF.utils.discriminator import Discriminator
+from Methods.IUF.utils.encoder import Encoder
+from Methods.IUF.utils.decoder import Decoder
 
 class IUF_Model(BaseAnomalyDetector):
     """
@@ -36,7 +39,8 @@ class IUF_Model(BaseAnomalyDetector):
         # Discriminator is responsible for predicting the task of a given image, and
         # its intermediary features are combined in the encoder with the query to get
         # "Object-Aware Self Attention" (OASA) modules in the encoder
-        self.discriminator = Discriminator(in_channels=in_channels,
+        self.discriminator = Discriminator(device=self.device,
+                                           in_channels=in_channels,
                                            patch_size=patch_size,
                                            embed_dim=embed_dim,
                                            num_heads=num_heads,
@@ -44,13 +48,15 @@ class IUF_Model(BaseAnomalyDetector):
                                            output_size=num_tasks)
         # Encoder creates our latent space and performs SVD on it,
         # which is used in the gradient update
-        self.encoder = Encoder(in_channels=in_channels,
+        self.encoder = Encoder(device=self.device,
+                               in_channels=in_channels,
                                patch_size=patch_size,
                                embed_dim=embed_dim,
                                num_heads=num_heads,
                                num_layers=num_layers)
         # The decoder decodes the latent space into a reconstructed image
-        self.decoder = Decoder(in_channels=in_channels,
+        self.decoder = Decoder(device=self.device,
+                               in_channels=in_channels,
                                patch_size=patch_size,
                                embed_dim=embed_dim,
                                num_heads=num_heads,
@@ -91,12 +97,15 @@ class IUF_Model(BaseAnomalyDetector):
             elif param.shape[-1]==self.embed_dim:
                 # Only do something if the parameter has the correct dimension
 
-                # Calculate grad_star, @ = classic matrix multiplication
-                t1 = self.v_old @ param.grad
-                t2 = self.omega * t1
-                grad_star = self.v_old.inverse() @ t2
-                # Create new gradient update
-                param.grad = grad_star + (beta * self.prev_grad[name])
+                try:
+                    # Calculate grad_star, @ = classic matrix multiplication
+                    t1 = self.v_old @ param.grad
+                    t2 = self.omega * t1
+                    grad_star = self.v_old.inverse() @ t2
+                    # Create new gradient update
+                    param.grad = grad_star + (beta * self.prev_grad[name])
+                except:
+                    pass
             else:
                 continue
 
@@ -120,14 +129,15 @@ class IUF_Model(BaseAnomalyDetector):
         for batch_idx, data in enumerate(dataloader):
             optimizer.zero_grad()
             imgs = data['image'].to(self.device)
-            x_recon, d_out, s_vals = self.forward(imgs).cpu()
+            x_recon, d_out, s_vals = self.forward(imgs)
             batch_size = imgs.shape[0]
             loss = IUF_Loss(x=imgs,
                             x_recon=x_recon,
                             singular_vals=s_vals,
                             t=3,
                             discrim_output=d_out,
-                            task_idx=torch.ones(batch_size, dtype=torch.long)) * (task_num-1)
+                            task_idx=(torch.ones(batch_size, dtype=torch.long) * (task_num-1)).to(self.device)
+                            )
             self.update_grad(loss)
             epoch_loss += loss.item()
             optimizer.step()
@@ -165,6 +175,7 @@ class IUF_Model(BaseAnomalyDetector):
         return preds, all_labels
 
     def forward(self, x):
+        x.to(self.device)
 
         # oasa_features = list of length num_layers,
         # where each item is a tensor of size (B x L x E)
@@ -220,7 +231,7 @@ def IUF_Loss(x, x_recon, singular_vals, t, discrim_output, task_idx,
         - Discriminator error = CrossEntropy(discrim_output, true label)
         - Singular Value error = sum(singular_vals from t -> C), from SVD(M_hat),
                                 where t is a hyperparameter and C is the total number of singular values.
-        Each component is weighted by a corresponding lambda, where
+        Each component is weighted by a corresponding lambda, where by default from the paper
         - lambda1 = 1
         - lambda2 = 0.5
         - lambda3 = 1-10
@@ -242,16 +253,16 @@ def IUF_Loss(x, x_recon, singular_vals, t, discrim_output, task_idx,
     assert t < len(singular_vals), "t should be less than the number of singular values"
 
     ### Reconstruction Error
-    recon_error = torch.abs(x_recon - x).sum()
-    print("Reconstruction error: ", recon_error)
+    recon_error = torch.abs(x_recon - x).mean()
+    # print("Reconstruction error: ", recon_error.item())
 
     ### Discriminator Error
     d_err = F.cross_entropy(discrim_output, task_idx, reduction='sum')
-    print("Discriminator error: ", d_err)
+    # print("Discriminator error: ", d_err.item())
 
     ### Singular Value Error
     s_val_error = singular_vals[t:].sum()
-    print("Singular Value error: ", s_val_error)
+    # print("Singular Value error: ", s_val_error.item())
 
     return (lamdba1 * recon_error) + \
         (lambda2 * d_err) + \
