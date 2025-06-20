@@ -134,7 +134,7 @@ class IUF_Model(BaseAnomalyDetector):
             loss = IUF_Loss(x=imgs,
                             x_recon=x_recon,
                             singular_vals=s_vals,
-                            t=3,
+                            t=1,
                             discrim_output=d_out,
                             task_idx=(torch.ones(batch_size, dtype=torch.long) * (task_num-1)).to(self.device)
                             )

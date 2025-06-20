@@ -117,6 +117,7 @@ def train_model(model_type: str,
                                              criterion=criterion,
                                              task_num=(t+1),
                                              update_z_epoch=True if (e+1)==num_epochs else False)
+
                 task_loss.append(loss)
                 curr_epoch_time = time.time() - start_time
 
