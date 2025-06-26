@@ -128,31 +128,31 @@ def train_model(model_type: str,
                 # Save memory distribution for this task in self.memory
                 model.update_memory()
 
-            # After last epoch, save model params for this task (saves weights and memory, if DNE)
-            model.save(f"./models/{model_type}/{dataset}/{"unsupervised" if unsupervised else "supervised"}/{task_name}_weights.pth")
+        # Only save model after final task training
+        model.save(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
 
         exp = "unsupervised" if unsupervised else "supervised"
         train_task_losses[exp] = exp_losses
 
     # Get training plots and save
     # Plot figure comparing experiments, where each experiment has its own plot, showing how the model trained on each task
-    for exp in ['supervised', 'unsupervised']:
-        fig = go.Figure()
-        for task in tasks:
-            if dataset == "MVTEC":
-                task_name = task
-            elif dataset == "MTD":
-                task_name = f"{data_aug}_"
-                for param in task:
-                    task_name += str(param).replace(".", "")
-                    if param != task[-1]:
-                        task_name += "_"
-
-            fig.add_trace(go.Scatter(y=train_task_losses[exp][task_name],
-                                     mode='lines', name=task_name))
-        fig.update_layout(title=f"Epoch Training Loss for {exp} experiment, per task",
-                          xaxis_title="Epoch",
-                          yaxis_title="Total Loss")
-        fig.show()
+    # for exp in ['supervised', 'unsupervised']:
+    #     fig = go.Figure()
+    #     for task in tasks:
+    #         if dataset == "MVTEC":
+    #             task_name = task
+    #         elif dataset == "MTD":
+    #             task_name = f"{data_aug}_"
+    #             for param in task:
+    #                 task_name += str(param).replace(".", "")
+    #                 if param != task[-1]:
+    #                     task_name += "_"
+    #
+    #         fig.add_trace(go.Scatter(y=train_task_losses[exp][task_name],
+    #                                  mode='lines', name=task_name))
+    #     fig.update_layout(title=f"Epoch Training Loss for {exp} experiment, per task",
+    #                       xaxis_title="Epoch",
+    #                       yaxis_title="Total Loss")
+    #     fig.show()
 
     return model

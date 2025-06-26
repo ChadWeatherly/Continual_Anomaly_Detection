@@ -67,6 +67,7 @@ def main():
     if TRAIN:
         for model in models.keys():
             if models[model]:
+                print(f"Starting training for model: {model}...")
                 if datasets['MVTEC']:
                     train_model(model_type=model,
                                 dataset='MVTEC',
@@ -75,7 +76,7 @@ def main():
                                 criterion=torch.nn.CrossEntropyLoss(),
                                 learning_rate=LEARNING_RATE
                                 )
-                elif datasets['MTD']:
+                if datasets['MTD']:
                     for distortion in data_aug.keys():
                         train_model(model_type=model,
                                     dataset='MTD',
