@@ -14,7 +14,7 @@ def eval_model(model_type: str,
     Test a model on all experiments. Assumes it's running from the root folder,
     and saving of plots and models assumes this current directory structure.
     Args:
-        model_type: a string of which model to train ("DNE", "IUF", "CAD")
+        model_type: a string of which model to train ("DNE", "IUF", "UCAD")
         batch_size: an int of how many samples per batch to train the model
         kwargs: additional arguments. Current assumed ones are:
             - data_aug, for MTD, which should contain a dict of the type of data augmentation for MTD,
@@ -29,7 +29,7 @@ def eval_model(model_type: str,
     # provide a default option
 
     # Check input assertions
-    assert model_type in ["DNE", "IUF", "CAD"]
+    assert model_type in ["DNE", "IUF", "UCAD"]
 
     # Tracks data across each experiment, then task.
     # Contains keys of: train_task_losses[dataset][unsupervised][task](preds, labels)
@@ -61,70 +61,60 @@ def eval_model(model_type: str,
 
         # Iterate through each unsupervised/supervised experiment
         for unsupervised in [True, False]:
+            # Load in model
+            # Get model
+            match model_type:
+                case "DNE":
+                    model = DNE_Model()
+                case "IUF":
+                    model = IUF_Model()
+                case "UCAD":
+                    pass
+            model.load(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
+            # If DNE, we need to generate our global distribution
+            if model_type == "DNE":
+                model.generate_global_dist()
+
             # Keeps track of current experiment data (unsupervised/supervised)
             exp_data = {}
             # Iterate through tasks
             for t in range(len(tasks)):
+                # TODO: Finish eval for different methods
+                # - Only test with final weights on all tasks
+                # - Create function to do all metrics with predictions/gt
+                    # - Create dataframe and save results as csv
+
+                # Get task
                 task = tasks[t]
-
-                # Get model
-                match model_type:
-                    case "DNE":
-                        model = DNE_Model()
-                    case "IUF":
-                        model = IUF_Model()
-                    case "CAD":
-                        pass
-
-                # Get model params
+                # Get task name, useful for saving data
                 if dataset == "MVTEC":
                     task_name = tasks[t]
                 elif dataset == "MTD":
                     task_name = task_names[t]
-                model.load(f"./models/{model_type}/{dataset}/{"unsupervised" if unsupervised else "supervised"}/{task_name}_weights.pth")
-
-                # If DNE, we need to generate our global distribution
-                if model_type == "DNE":
-                    model.generate_global_dist()
 
 
-                # Get our previous tasks, which include tasks [0, t], inclusive
-                # So this includes current task
-                if dataset=="MTD":
-                    prev_tasks = []
-                    for prev_task in tasks[:t+1]:
-                            if prev_task[0] == task[0]:
-                                prev_tasks.append(prev_task)
-                elif dataset=="MVTEC":
-                    prev_tasks = tasks[:t+1]
-
-                # Iterate through each previous task
                 task_predictions = []
                 task_labels = []
-                for p in range(len(prev_tasks)):
-                    prev_task = prev_tasks[p]
 
-                    clear_output(wait=False)
-                    # Print status values
-                    print(f"Testing {'Unsupervised' if unsupervised else 'Supervised'}",
-                          "--------------------",
-                          f"Current Task: {task}",
-                          f"Testing Previous Task: {prev_task}",
-                          f"Out of previous tasks: {prev_tasks}",
-                          sep="\n")
+                clear_output(wait=False)
+                # Print status values
+                print(f"Testing {'Unsupervised' if unsupervised else 'Supervised'}",
+                      "--------------------",
+                      f"Current Task: {task}",
+                      sep="\n")
 
-                    # Run through current and all previous tasks
-                    if dataset == "MVTEC":
-                        test_dataset = datasets.mvtec(train=False, task=task, unsupervised=unsupervised)
-                    elif dataset == "MTD":
-                        test_dataset = datasets.mtd(train=False, unsupervised=unsupervised,
-                                                    data_aug=task[0], data_aug_params=task[1])
-                    test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
-                                                 shuffle=True, collate_fn=datasets.collate)
-                    preds, labels = model.eval_one_epoch(test_dataloader)
+                # Run through current and all previous tasks
+                if dataset == "MVTEC":
+                    test_dataset = datasets.mvtec(train=False, task=task, unsupervised=unsupervised)
+                elif dataset == "MTD":
+                    test_dataset = datasets.mtd(train=False, unsupervised=unsupervised,
+                                                data_aug=task[0], data_aug_params=task[1])
+                test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
+                                             shuffle=True, collate_fn=datasets.collate)
+                preds, labels = model.eval_one_epoch(test_dataloader)
 
-                    task_predictions += preds
-                    task_labels += labels
+                task_predictions += preds
+                task_labels += labels
 
                 exp_data[task_name] = (task_predictions, task_labels)
             dataset_data['unsupervised' if unsupervised else 'supervised'] = exp_data

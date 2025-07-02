@@ -16,7 +16,7 @@ def train_model(model_type: str,
     Train a model with given criterion and optimizer. Assumes it's running from the root folder,
     and saving of plots and models assumes this current directory structure.
     Args:
-        model_type: a string of which model to train ("DNE", "IUF", "CAD")
+        model_type: a string of which model to train ("DNE", "IUF", "UCAD")
         dataset: a string of which dataset to use ("MVTEC", "MTD")
         num_epochs: an int of how many epochs to train the model
         batch_size: an int of how many samples per batch to train the model
@@ -31,7 +31,7 @@ def train_model(model_type: str,
     Returns:
     """
     # Check input assertions
-    assert model_type in ["DNE", "IUF", "CAD"]
+    assert model_type in ["DNE", "IUF", "UCAD"]
     assert dataset in ["MVTEC", "MTD"]
 
     # kwargs takes any other parameters not explicitly stated above, and turns them
@@ -61,7 +61,7 @@ def train_model(model_type: str,
                 model = DNE_Model()
             case "IUF":
                 model = IUF_Model()
-            case "CAD":
+            case "UCAD":
                 pass
         optimizer = torch.optim.Adam(model.parameters(),
                                      lr=kwargs.get('learning_rate', 0.0001))
@@ -133,26 +133,5 @@ def train_model(model_type: str,
 
         exp = "unsupervised" if unsupervised else "supervised"
         train_task_losses[exp] = exp_losses
-
-    # Get training plots and save
-    # Plot figure comparing experiments, where each experiment has its own plot, showing how the model trained on each task
-    # for exp in ['supervised', 'unsupervised']:
-    #     fig = go.Figure()
-    #     for task in tasks:
-    #         if dataset == "MVTEC":
-    #             task_name = task
-    #         elif dataset == "MTD":
-    #             task_name = f"{data_aug}_"
-    #             for param in task:
-    #                 task_name += str(param).replace(".", "")
-    #                 if param != task[-1]:
-    #                     task_name += "_"
-    #
-    #         fig.add_trace(go.Scatter(y=train_task_losses[exp][task_name],
-    #                                  mode='lines', name=task_name))
-    #     fig.update_layout(title=f"Epoch Training Loss for {exp} experiment, per task",
-    #                       xaxis_title="Epoch",
-    #                       yaxis_title="Total Loss")
-    #     fig.show()
 
     return model

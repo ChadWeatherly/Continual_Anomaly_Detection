@@ -79,7 +79,7 @@ class mtd(Dataset):
         if transform is None:
             self.transform = transforms.Compose([
                 transforms.Resize((224, 224)),
-                transforms.ToDtype(torch.float32),
+                transforms.ToDtype(torch.float32, scale=True),
             ])
         else:
             self.transform = transform

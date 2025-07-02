@@ -164,10 +164,13 @@ class IUF_Model(BaseAnomalyDetector):
             imgs = data['image'].to(self.device)
 
             # Get epoch loss
-            logits = self.forward(imgs, head=True,
-                                  add_to_z_epoch=False).detach().clone()
-            logits = F.softmax(logits, dim=1).argmax(dim=1).detach().cpu()
-            preds += [i.item() for i in logits]
+            x_recon, discrim_out, singular_vals = self.forward(imgs)
+            recon_error = torch.abs(x_recon - imgs).detach().clone()
+            # TODO: Finish IUF eval
+            print(imgs.mean().item(), x_recon.mean().item())
+            print(recon_error.shape)
+            break
+            preds.append(recon_error)
             all_labels += data['label']
 
 
