@@ -1,5 +1,6 @@
 import time
 import torch
+import pandas as pd
 from torch.utils.data import DataLoader
 import plotly.graph_objects as go
 from IPython.display import clear_output
@@ -31,14 +32,8 @@ def eval_model(model_type: str,
     # Check input assertions
     assert model_type in ["DNE", "IUF", "UCAD"]
 
-    # Tracks data across each experiment, then task.
-    # Contains keys of: train_task_losses[dataset][unsupervised][task](preds, labels)
-    prev_task_data = {}
-
     # Iterate through each dataset
     for dataset in ["MTD", "MVTEC"]:
-        # Keeps track of current dataset data
-        dataset_data = {}
 
         # Set up tasks
         if dataset == "MVTEC":
@@ -75,14 +70,12 @@ def eval_model(model_type: str,
             if model_type == "DNE":
                 model.generate_global_dist()
 
-            # Keeps track of current experiment data (unsupervised/supervised)
-            exp_data = {}
             # Iterate through tasks
             for t in range(len(tasks)):
                 # TODO: Finish eval for different methods
-                # - Only test with final weights on all tasks
-                # - Create function to do all metrics with predictions/gt
-                    # - Create dataframe and save results as csv
+                #    - Only test with final weights on all tasks
+                #    - Create function to do all metrics with predictions/gt
+                #    - Create dataframe and save results as csv
 
                 # Get task
                 task = tasks[t]
@@ -91,10 +84,6 @@ def eval_model(model_type: str,
                     task_name = tasks[t]
                 elif dataset == "MTD":
                     task_name = task_names[t]
-
-
-                task_predictions = []
-                task_labels = []
 
                 clear_output(wait=False)
                 # Print status values
@@ -111,12 +100,7 @@ def eval_model(model_type: str,
                                                 data_aug=task[0], data_aug_params=task[1])
                 test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
                                              shuffle=True, collate_fn=datasets.collate)
+                # TODO: Handle output here, taking in different output with functions
                 preds, labels = model.eval_one_epoch(test_dataloader)
 
-                task_predictions += preds
-                task_labels += labels
-
-                exp_data[task_name] = (task_predictions, task_labels)
-            dataset_data['unsupervised' if unsupervised else 'supervised'] = exp_data
-        prev_task_data[dataset] = dataset_data
-    return prev_task_data
+    return

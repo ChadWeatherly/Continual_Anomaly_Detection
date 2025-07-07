@@ -146,36 +146,66 @@ class IUF_Model(BaseAnomalyDetector):
 
     def eval_one_epoch(self, dataloader, results_path=None, model_path=None):
         """
-        Eval a model on one epoch.
+        Evaluate model on one epoch, collecting raw model outputs for later analysis.
+
+        This method performs inference on the entire dataset and returns the raw
+        reconstruction outputs, original images, and ground truth masks. These can
+        then be used by separate prediction methods for image-level or pixel-level
+        anomaly detection.
+
         Args:
-            dataloader: Dataloader for the training data.
-            results_path: If exists, where we want to save data about the results
-            model_path: If exists, where we want to access model params
+            dataloader: Dataloader for the evaluation data
+            results_path: If exists, where to save evaluation results (unused currently)
+            model_path: If exists, path to model parameters (unused currently)
 
         Returns:
-            predictions: the predicted labels
-            labels: the ground truth labels
+            x_recon_all: Tensor of reconstructed images, shape (D, C, H, W)
+            x_true_all: Tensor of original images, shape (D, C, H, W)
+            gt_masks_all: Tensor of ground truth masks, shape (D, C, H, W)
+
+        Where:
+            D = total number of samples in the dataset
+            C = number of channels (3 for RGB)
+            H, W = image height and width (224, 224)
         """
         self.eval()
 
-        preds = []
-        all_labels = []
-        for batch_idx, data in enumerate(dataloader):
-            imgs = data['image'].to(self.device)
+        x_recon_list = []
+        x_true_list = []
+        gt_masks_list = []
 
-            # Get epoch loss
-            x_recon, discrim_out, singular_vals = self.forward(imgs)
-            recon_error = torch.abs(x_recon - imgs).detach().clone()
-            # TODO: Finish IUF eval
-            print(imgs.mean().item(), x_recon.mean().item())
-            print(recon_error.shape)
-            break
-            preds.append(recon_error)
-            all_labels += data['label']
+        with torch.no_grad():  # Disable gradient computation for efficiency
+            for batch_idx, data in enumerate(dataloader):
+                # Move images to device and perform forward pass
+                imgs = data['image'].to(self.device)
+                x_recon, discrim_out, singular_vals = self.forward(imgs)
 
+                # Collect reconstructed and original images (move to CPU to save GPU memory)
+                x_recon_list.append(x_recon.cpu())
+                x_true_list.append(imgs.cpu())
 
-        # Note: each of these values are just float values (taken from Tensor.item())
-        return preds, all_labels
+                # Handle ground truth masks (can be None for normal samples)
+                batch_gt_masks = []
+                for i, gt_mask in enumerate(data['ground_truth_mask']):
+                    if gt_mask is not None:
+                        # Ensure mask has same number of channels as image
+                        if gt_mask.shape[0] == 1:  # Single channel mask
+                            gt_mask = gt_mask.expand(3, -1, -1)  # Expand to 3 channels
+                        batch_gt_masks.append(gt_mask)
+                    else:
+                        # Create zero mask for normal samples (same shape as corresponding image)
+                        zero_mask = torch.zeros_like(imgs[i].cpu())
+                        batch_gt_masks.append(zero_mask)
+
+                # Stack ground truth masks for this batch
+                gt_masks_list.append(torch.stack(batch_gt_masks))
+
+        # Concatenate all batches into single tensors of shape (D, C, H, W)
+        x_recon_all = torch.cat(x_recon_list, dim=0)
+        x_true_all = torch.cat(x_true_list, dim=0)
+        gt_masks_all = torch.cat(gt_masks_list, dim=0)
+
+        return x_recon_all, x_true_all, gt_masks_all
 
     def forward(self, x):
         x.to(self.device)

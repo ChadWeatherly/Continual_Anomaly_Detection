@@ -226,16 +226,16 @@ class DNE_Model(BaseAnomalyDetector):
 
         preds = []
         all_labels = []
-        for batch_idx, data in enumerate(dataloader):
-            imgs = data['image'].to(self.device)
+        with torch.no_grad():
+            for batch_idx, data in enumerate(dataloader):
+                imgs = data['image'].to(self.device)
 
-            # Get epoch loss
-            logits = self.forward(imgs, head=True,
-                                   add_to_z_epoch=False).detach().clone()
-            logits = F.softmax(logits, dim=1).argmax(dim=1).detach().cpu()
-            preds += [i.item() for i in logits]
-            all_labels += data['label']
-
+                # Get epoch loss
+                logits = self.forward(imgs, head=True,
+                                       add_to_z_epoch=False).detach().clone()
+                logits = F.softmax(logits, dim=1).argmax(dim=1).detach().cpu()
+                preds += [i.item() for i in logits]
+                all_labels += data['label']
 
         # Note: each of these values are just float values (taken from Tensor.item())
         return preds, all_labels
