@@ -4,6 +4,8 @@
 # __all__ = ['dne']
 
 import numpy as np
+import os
+import pandas as pd
 import torch
 import torch.nn as nn
 from torchvision.models.vision_transformer import vit_b_16
@@ -90,6 +92,18 @@ class BaseAnomalyDetector(nn.Module):
             float: Total Loss for that epoch
         """
         raise NotImplementedError("Subclasses must implement eval_one_epoch method")
+
+    def calc_results(self, dataset, exp, metrics):
+        """
+        Method used to calculate results for a given model and save that data as CSV
+        Args:
+            dataset (str): 'MTD' or 'MVTEC'
+            exp (str): 'unsupervised' or 'supervised'
+        Returns:
+
+        """
+
+        raise NotImplementedError("Subclasses must implement calc_results method")
 
     def predict(self, x):
         """Make prediction for input.

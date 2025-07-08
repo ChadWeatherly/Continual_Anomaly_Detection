@@ -210,7 +210,7 @@ class DNE_Model(BaseAnomalyDetector):
 
         return epoch_loss
 
-    def eval_one_epoch(self, dataloader, results_path=None, model_path=None):
+    def eval_one_epoch(self, dataloader):
         """
         Eval a model on one epoch.
         Args:
@@ -239,6 +239,36 @@ class DNE_Model(BaseAnomalyDetector):
 
         # Note: each of these values are just float values (taken from Tensor.item())
         return preds, all_labels
+
+    def calc_results(self, dataloader,
+                     dataset, task, exp):
+        """
+        Calculate results of the model on a testing set.
+        Args:
+            dataloader: Dataloader for the testing data.
+            dataset: (str) name of the dataset, either 'MVTEC' or 'MTD'
+            task: (str) name of the task, used for column naming
+            exp: (str) name of the experiment, either 'unsupervised' or 'supervised'
+        Returns:
+            Nothing
+        """
+
+        metrics = ["img_acc", "img_sensitivity"]
+        preds, labels = self.eval_one_epoch(dataloader)
+        # Go through metrics for current dataset and experiment
+        for m in metrics:
+            file_prefix = f"{dataset}_{exp}_{m}"
+            # Check if csv file exists.
+            # If it does exist, load it in
+
+            # if it doesn't, use function (need to create it in utils maybe?)
+            # create_csv(), based on metric type, dataset, etc.
+
+            # Perform calculations for that metric here
+
+            # Update DF and save it
+
+        return
 
     def predict(self, img):
         """

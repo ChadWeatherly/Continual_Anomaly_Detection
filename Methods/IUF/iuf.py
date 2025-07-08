@@ -144,7 +144,7 @@ class IUF_Model(BaseAnomalyDetector):
 
         return epoch_loss
 
-    def eval_one_epoch(self, dataloader, results_path=None, model_path=None):
+    def eval_one_epoch(self, dataloader):
         """
         Evaluate model on one epoch, collecting raw model outputs for later analysis.
 
@@ -155,8 +155,6 @@ class IUF_Model(BaseAnomalyDetector):
 
         Args:
             dataloader: Dataloader for the evaluation data
-            results_path: If exists, where to save evaluation results (unused currently)
-            model_path: If exists, path to model parameters (unused currently)
 
         Returns:
             x_recon_all: Tensor of reconstructed images, shape (D, C, H, W)
@@ -206,6 +204,36 @@ class IUF_Model(BaseAnomalyDetector):
         gt_masks_all = torch.cat(gt_masks_list, dim=0)
 
         return x_recon_all, x_true_all, gt_masks_all
+
+    def calc_results(self, dataloader,
+                     dataset, task, exp):
+        """
+        Calculate results of the model on a testing set.
+        Args:
+            dataloader: Dataloader for the testing data.
+            dataset: (str) name of the dataset, either 'MVTEC' or 'MTD'
+            task: (str) name of the task, used for column naming
+            exp: (str) name of the experiment, either 'unsupervised' or 'supervised'
+        Returns:
+            Nothing
+        """
+
+        metrics = ["img_acc", "img_sensitivity"]
+        preds, labels = self.eval_one_epoch(dataloader)
+        # Go through metrics for current dataset and experiment
+        for m in metrics:
+            file_prefix = f"{dataset}_{exp}_{m}"
+            # Check if csv file exists.
+            # If it does exist, load it in
+
+            # if it doesn't, use function (need to create it in utils maybe?)
+            # create_csv(), based on metric type, dataset, etc.
+
+            # Perform calculations for that metric here
+
+            # Update DF and save it
+
+        return
 
     def forward(self, x):
         x.to(self.device)

@@ -40,8 +40,10 @@ def eval_model(model_type: str,
             tasks = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut',
                      'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush',
                      'transistor', 'wood', 'zipper']
+            break
         elif dataset == "MTD":
             task_dict = kwargs.get('data_aug')
+            break
             tasks = [] # list of tuples, containing tuples of (distortion, data_aug_params)
             task_names = []
             for distortion in task_dict.keys():
@@ -66,16 +68,16 @@ def eval_model(model_type: str,
                 case "UCAD":
                     pass
             model.load(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
-            # If DNE, we need to generate our global distribution
+            # If DNE, we need to generate our global distribution for inference
             if model_type == "DNE":
                 model.generate_global_dist()
 
             # Iterate through tasks
             for t in range(len(tasks)):
                 # TODO: Finish eval for different methods
-                #    - Only test with final weights on all tasks
-                #    - Create function to do all metrics with predictions/gt
-                #    - Create dataframe and save results as csv
+                #    - finish calc_results() method for each model
+                #        - Will automatically calculate predictions and
+                #          save data to corresponding csv files with df
 
                 # Get task
                 task = tasks[t]
@@ -100,7 +102,7 @@ def eval_model(model_type: str,
                                                 data_aug=task[0], data_aug_params=task[1])
                 test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
                                              shuffle=True, collate_fn=datasets.collate)
-                # TODO: Handle output here, taking in different output with functions
-                preds, labels = model.eval_one_epoch(test_dataloader)
+                # Evaluate one epoch of the test_dataset
+                model.calc_results(test_dataloader)
 
     return
