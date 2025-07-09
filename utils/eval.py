@@ -1,5 +1,6 @@
 import time
 import torch
+import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
 import plotly.graph_objects as go
@@ -35,18 +36,57 @@ def eval_model(model_type: str,
     # Iterate through each dataset
     for dataset in ["MTD", "MVTEC"]:
 
-        # Set up tasks
+        # Go through each dataset
         if dataset == "MVTEC":
             tasks = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut',
                      'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush',
                      'transistor', 'wood', 'zipper']
-            break
+
+            # Iterate through each unsupervised/supervised experiment
+            for unsupervised in [True, False]:
+                # Load in model
+                # Get model
+                match model_type:
+                    case "DNE":
+                        model = DNE_Model()
+                    case "IUF":
+                        model = IUF_Model()
+                    case "UCAD":
+                        pass
+                model.load(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
+
+                # If DNE, we need to generate our global distribution for inference
+                if model_type == "DNE":
+                    model.generate_global_dist()
+
+                # Iterate through tasks
+                for t in range(len(tasks)):
+
+                    # Get task
+                    task = tasks[t]
+
+                    clear_output(wait=False)
+                    # Print status values
+                    print(f"Testing {model_type}-MVTEC-{'Unsupervised' if unsupervised else 'Supervised'}",
+                          "--------------------",
+                          f"Current Task: {task}",
+                          sep="\n")
+
+                    # Run through current task
+                    test_dataset = datasets.mvtec(train=False, task=task, unsupervised=unsupervised)
+                    test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
+                                                 shuffle=True, collate_fn=datasets.collate)
+                    # Evaluate one epoch of the test_dataset
+                    model_output = model.calc_results(test_dataloader,
+                                                      "MVTEC",
+                                                      task,
+                                                      tasks,
+                                                      "unsupervised" if unsupervised else "supervised")
         elif dataset == "MTD":
             task_dict = kwargs.get('data_aug')
-            break
-            tasks = [] # list of tuples, containing tuples of (distortion, data_aug_params)
-            task_names = []
             for distortion in task_dict.keys():
+                tasks = [] # list of tuples, containing tuples of (distortion, data_aug_params)
+                task_names = []
                 for task in task_dict[distortion]:
                     task_name = distortion + "_"
                     tasks.append((distortion, task))
@@ -56,57 +96,53 @@ def eval_model(model_type: str,
                             task_name += "_"
                     task_names.append(task_name)
 
-        # Iterate through each unsupervised/supervised experiment
-        for unsupervised in [True, False]:
-            # Load in model
-            # Get model
-            match model_type:
-                case "DNE":
-                    model = DNE_Model()
-                case "IUF":
-                    model = IUF_Model()
-                case "UCAD":
-                    pass
-            model.load(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
-            # If DNE, we need to generate our global distribution for inference
-            if model_type == "DNE":
-                model.generate_global_dist()
+                # Iterate through each unsupervised/supervised experiment
+                for unsupervised in [True, False]:
+                    # Load in model
+                    # Get model
+                    match model_type:
+                        case "DNE":
+                            model = DNE_Model()
+                        case "IUF":
+                            model = IUF_Model()
+                        case "UCAD":
+                            pass
+                    model.load(f"./models/{model_type}/{model_type}_{dataset}_{distortion}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
 
-            # Iterate through tasks
-            for t in range(len(tasks)):
-                # TODO: Finish eval for different methods
-                #    - finish calc_results() method for each model
-                #        - Will automatically calculate predictions and
-                #          save data to corresponding csv files with df
+                    # If DNE, we need to generate our global distribution for inference
+                    if model_type == "DNE":
+                        model.generate_global_dist()
 
-                # Get task
-                task = tasks[t]
-                # Get task name, useful for saving data
-                if dataset == "MVTEC":
-                    task_name = tasks[t]
-                elif dataset == "MTD":
-                    task_name = task_names[t]
+                    # Iterate through tasks
+                    for t in range(len(tasks)):
 
-                clear_output(wait=False)
-                # Print status values
-                print(f"Testing {'Unsupervised' if unsupervised else 'Supervised'}",
-                      "--------------------",
-                      f"Current Task: {task}",
-                      sep="\n")
+                        # Get task
+                        task = tasks[t]
+                        # Get task name, useful for saving data
+                        task_name = task_names[t]
 
-                # Run through current and all previous tasks
-                if dataset == "MVTEC":
-                    test_dataset = datasets.mvtec(train=False, task=task, unsupervised=unsupervised)
-                elif dataset == "MTD":
-                    test_dataset = datasets.mtd(train=False, unsupervised=unsupervised,
-                                                data_aug=task[0], data_aug_params=task[1])
-                test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
-                                             shuffle=True, collate_fn=datasets.collate)
-                # Evaluate one epoch of the test_dataset
-                model.calc_results(test_dataloader,
-                                   dataset,
-                                   task_name,
-                                   tasks if dataset == "MVTEC" else task_names,
-                                   "unsupervised" if unsupervised else "supervised")
+                        clear_output(wait=False)
+                        # Print status values
+                        print(f"Testing {model_type}-MTD-{'Unsupervised' if unsupervised else 'Supervised'}",
+                              "--------------------",
+                              f"Current Task: {task}",
+                              sep="\n")
 
-    return
+                        # Run through current and all previous tasks
+                        test_dataset = datasets.mtd(train=False, unsupervised=unsupervised,
+                                                        data_aug=task[0], data_aug_params=task[1])
+                        test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
+                                                     shuffle=True, collate_fn=datasets.collate)
+                        # Evaluate one epoch of the test_dataset
+                        model_output = model.calc_results(test_dataloader,
+                                                          "MTD",
+                                                          task_name,
+                                                          task_names,
+                                                          "unsupervised" if unsupervised else "supervised")
+
+                        break
+                    break
+                break
+            break
+
+    return model_output

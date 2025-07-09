@@ -24,10 +24,9 @@ def train_model(model_type: str,
             - criterion
             - learning_rate
             - tasks, if using MTD, which should contain a list of the dataset augmentation windows
-                    (will be passed to datasets.mvtec() as data_aug_params)
+                    (will be passed to datasets.mtd() as data_aug_params)
             - data_aug, if using MTD, which should contain a string of the type of data augmentation for MTD,
-                        which should be a string in ["color", "blur", "geometric"
-
+                        which should be a string in ["color", "blur", "geometric"]
     Returns:
     """
     # Check input assertions
@@ -129,7 +128,11 @@ def train_model(model_type: str,
                 model.update_memory()
 
         # Only save model after final task training
-        model.save(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
+        if dataset == "MVTEC":
+            model.save(f"./models/{model_type}/{model_type}_{dataset}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
+        elif dataset == "MTD":
+            model.save(f"./models/{model_type}/{model_type}_{dataset}_{data_aug}_{"unsupervised" if unsupervised else "supervised"}_weights.pth")
+
 
         exp = "unsupervised" if unsupervised else "supervised"
         train_task_losses[exp] = exp_losses

@@ -1,3 +1,5 @@
+import pandas as pd
+
 from Methods import *
 from Methods import BaseAnomalyDetector
 
@@ -247,7 +249,7 @@ class DNE_Model(BaseAnomalyDetector):
         Args:
             dataloader: Dataloader for the testing data.
             dataset: (str) name of the dataset, either 'MVTEC' or 'MTD'
-            task: (str) name of the task, used for column naming
+            task: (str) name of the task, used for column indexing
             all_tasks: (list[str]) list of all task names for column naming
             exp: (str) name of the experiment, either 'unsupervised' or 'supervised'
         Returns:
@@ -256,23 +258,35 @@ class DNE_Model(BaseAnomalyDetector):
 
         metrics = ["img_acc", "img_sensitivity"]
         preds, labels = self.eval_one_epoch(dataloader)
+        preds = np.array(preds)
+        labels = np.array(labels)
         # Go through metrics for current dataset and experiment
         result_files = os.listdir("results") # assumes this is run from the root folder src
         for m in metrics:
-            filename = f"{dataset}_{exp}_{m}.csv"
+            filename = f"{dataset}_{exp}_{m}.csv" if dataset=='MVTEC' else f"{dataset}_{task.split("_")[0]}_{exp}_{m}.csv"
             # Check if csv file exists.
             if filename in result_files:
                 # If it does exist, load it in
                 df = pd.read_csv(os.path.join("results", filename))
             else:
                 # if it doesn't, use function to create it
-                df = create_df(dataset, all_tasks, m)
+                df = pd.DataFrame(columns=all_tasks)
+
+            # Add row for current method if it doesn't exist
+
 
             # Perform calculations for that metric here
+            # 1 = anomaly, 0 = good
+            if m == "img_acc":
+                # TODO: Keep going from here to get actual metrics, then copy to IUF for similar eval
+                acc = (preds==labels).sum() / len(preds)
+                print(acc)
+                # df.loc("DNE", task_name)
+
 
             # Update DF and save it
 
-        return
+        return df
 
     def predict(self, img):
         """
