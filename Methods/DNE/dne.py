@@ -241,28 +241,32 @@ class DNE_Model(BaseAnomalyDetector):
         return preds, all_labels
 
     def calc_results(self, dataloader,
-                     dataset, task, exp):
+                     dataset, task, all_tasks, exp):
         """
         Calculate results of the model on a testing set.
         Args:
             dataloader: Dataloader for the testing data.
             dataset: (str) name of the dataset, either 'MVTEC' or 'MTD'
             task: (str) name of the task, used for column naming
+            all_tasks: (list[str]) list of all task names for column naming
             exp: (str) name of the experiment, either 'unsupervised' or 'supervised'
         Returns:
-            Nothing
+            Nothing; saves df's to appropriate files
         """
 
         metrics = ["img_acc", "img_sensitivity"]
         preds, labels = self.eval_one_epoch(dataloader)
         # Go through metrics for current dataset and experiment
+        result_files = os.listdir("results") # assumes this is run from the root folder src
         for m in metrics:
-            file_prefix = f"{dataset}_{exp}_{m}"
+            filename = f"{dataset}_{exp}_{m}.csv"
             # Check if csv file exists.
-            # If it does exist, load it in
-
-            # if it doesn't, use function (need to create it in utils maybe?)
-            # create_csv(), based on metric type, dataset, etc.
+            if filename in result_files:
+                # If it does exist, load it in
+                df = pd.read_csv(os.path.join("results", filename))
+            else:
+                # if it doesn't, use function to create it
+                df = create_df(dataset, all_tasks, m)
 
             # Perform calculations for that metric here
 

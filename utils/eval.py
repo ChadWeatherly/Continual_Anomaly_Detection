@@ -103,6 +103,10 @@ def eval_model(model_type: str,
                 test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
                                              shuffle=True, collate_fn=datasets.collate)
                 # Evaluate one epoch of the test_dataset
-                model.calc_results(test_dataloader)
+                model.calc_results(test_dataloader,
+                                   dataset,
+                                   task_name,
+                                   tasks if dataset == "MVTEC" else task_names,
+                                   "unsupervised" if unsupervised else "supervised")
 
     return
