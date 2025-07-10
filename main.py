@@ -1,5 +1,17 @@
 """
-Main function to run on the GPU Cluster
+Main function to run on the GPU Cluster.
+
+Used tmux for creating a session that won't stop if the SSH
+connection is interrupted.
+
+To start session:
+tmux new -s chadw (<- session name)
+
+To list sessions:
+tmux ls
+
+To reattach to a session:
+tmux a -t chadw
 """
 
 from utils.train import train_model
@@ -18,7 +30,7 @@ def main():
         "CAD":False
     }
     datasets = {
-        "MVTEC":True,
+        "MVTEC":False,
         "MTD":True
     }
     NUM_EPOCHS = 25
