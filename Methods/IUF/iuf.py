@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import os
+import pandas as pd
 from torchvision.models.vision_transformer import vit_b_16
 from Methods import BaseAnomalyDetector
 from Methods.IUF.utils.discriminator import Discriminator
@@ -206,34 +208,54 @@ class IUF_Model(BaseAnomalyDetector):
         return x_recon_all, x_true_all, gt_masks_all
 
     def calc_results(self, dataloader,
-                     dataset, task, exp):
+                     dataset, task, all_tasks, exp,
+                     metrics):
         """
         Calculate results of the model on a testing set.
         Args:
             dataloader: Dataloader for the testing data.
             dataset: (str) name of the dataset, either 'MVTEC' or 'MTD'
-            task: (str) name of the task, used for column naming
+            task: (str) name of the task, used for column indexing
+            all_tasks: (list[str]) list of all task names for column naming
             exp: (str) name of the experiment, either 'unsupervised' or 'supervised'
+            metrics: (list) list of metrics to calculate for each task
         Returns:
-            Nothing
+            Nothing; saves df's to appropriate files
         """
+        # all tensors below have shape (N, C, H, W), where N=dataset size
+        x_recon_all, x_true_all, gt_masks_all = self.eval_one_epoch(dataloader)
+        recon_error = (x_true_all - x_recon_all).abs()
+        recon_error /= recon_error.max() # scale to [0, 1]
+        # Both are of size (N)
+        labels = (torch.tensor([gt_masks_all[i].sum() for i in range(len(gt_masks_all))]) > 0).int()
+        avg_error = torch.tensor([recon_error[i].mean() for i in range(len(recon_error))])
+        preds = (avg_error > 0.5).int()
 
-        metrics = ["img_acc", "img_sensitivity"]
-        preds, labels = self.eval_one_epoch(dataloader)
         # Go through metrics for current dataset and experiment
+        result_files = os.listdir("results") # assumes this is run from the root folder src
         for m in metrics:
-            file_prefix = f"{dataset}_{exp}_{m}"
+            filename = f"{dataset}_{exp}_{m}.csv" if dataset=='MVTEC' else f"{dataset}_{task.split("_")[0]}_{exp}_{m}.csv"
             # Check if csv file exists.
-            # If it does exist, load it in
-
-            # if it doesn't, use function (need to create it in utils maybe?)
-            # create_csv(), based on metric type, dataset, etc.
+            if filename in result_files:
+                # If it does exist, load it in
+                df = pd.read_csv(os.path.join("results", filename))
+            else:
+                # if it doesn't, use function to create it
+                df = pd.DataFrame(columns=all_tasks)
 
             # Perform calculations for that metric here
+            # 1 = anomaly, 0 = good
+            if m == "img_acc":
+                acc = ((preds==labels).sum() / len(preds)).item()
+                df.loc["IUF", task] = acc
+            elif m == "img_recall":
+                recall = (((preds==1)*(labels==1)).sum() / ((labels==1).sum())).item()
+                df.loc["IUF", task] = recall
 
             # Update DF and save it
+            df.to_csv(os.path.join("results", filename), index=True)
 
-        return
+        return preds
 
     def forward(self, x):
         x.to(self.device)

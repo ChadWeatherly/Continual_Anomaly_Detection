@@ -273,7 +273,6 @@ class DNE_Model(BaseAnomalyDetector):
                 # if it doesn't, use function to create it
                 df = pd.DataFrame(columns=all_tasks)
 
-            # TODO: Copy into IUF and complete, before running
             # Perform calculations for that metric here
             # 1 = anomaly, 0 = good
             if m == "img_acc":
@@ -286,7 +285,7 @@ class DNE_Model(BaseAnomalyDetector):
             # Update DF and save it
             df.to_csv(os.path.join("results", filename), index=True)
 
-        return preds, labels
+        return 0
 
     def predict(self, img):
         """
