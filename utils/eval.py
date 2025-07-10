@@ -11,6 +11,7 @@ import datasets
 
 def eval_model(model_type: str,
                 batch_size: int,
+               metrics: list[str],
                 **kwargs):
     """
     Test a model on all experiments. Assumes it's running from the root folder,
@@ -18,6 +19,7 @@ def eval_model(model_type: str,
     Args:
         model_type: a string of which model to train ("DNE", "IUF", "UCAD")
         batch_size: an int of how many samples per batch to train the model
+        metrics: a list of strings of which metrics to use for evaluating the model
         kwargs: additional arguments. Current assumed ones are:
             - data_aug, for MTD, which should contain a dict of the type of data augmentation for MTD,
                         with keys being any combination of ["color", "blur", "geometric"]
@@ -81,7 +83,8 @@ def eval_model(model_type: str,
                                                       "MVTEC",
                                                       task,
                                                       tasks,
-                                                      "unsupervised" if unsupervised else "supervised")
+                                                      "unsupervised" if unsupervised else "supervised",
+                                                      metrics)
         elif dataset == "MTD":
             task_dict = kwargs.get('data_aug')
             for distortion in task_dict.keys():
@@ -138,7 +141,8 @@ def eval_model(model_type: str,
                                                           "MTD",
                                                           task_name,
                                                           task_names,
-                                                          "unsupervised" if unsupervised else "supervised")
+                                                          "unsupervised" if unsupervised else "supervised",
+                                                          metrics)
 
                         break
                     break

@@ -243,7 +243,8 @@ class DNE_Model(BaseAnomalyDetector):
         return preds, all_labels
 
     def calc_results(self, dataloader,
-                     dataset, task, all_tasks, exp):
+                     dataset, task, all_tasks, exp,
+                     metrics):
         """
         Calculate results of the model on a testing set.
         Args:
@@ -252,11 +253,11 @@ class DNE_Model(BaseAnomalyDetector):
             task: (str) name of the task, used for column indexing
             all_tasks: (list[str]) list of all task names for column naming
             exp: (str) name of the experiment, either 'unsupervised' or 'supervised'
+            metrics: (list) list of metrics to calculate for each task
         Returns:
             Nothing; saves df's to appropriate files
         """
 
-        metrics = ["img_acc", "img_sensitivity"]
         preds, labels = self.eval_one_epoch(dataloader)
         preds = np.array(preds)
         labels = np.array(labels)
@@ -272,21 +273,20 @@ class DNE_Model(BaseAnomalyDetector):
                 # if it doesn't, use function to create it
                 df = pd.DataFrame(columns=all_tasks)
 
-            # Add row for current method if it doesn't exist
-
-
+            # TODO: Copy into IUF and complete, before running
             # Perform calculations for that metric here
             # 1 = anomaly, 0 = good
             if m == "img_acc":
-                # TODO: Keep going from here to get actual metrics, then copy to IUF for similar eval
                 acc = (preds==labels).sum() / len(preds)
-                print(acc)
-                # df.loc("DNE", task_name)
-
+                df.loc["DNE", task] = acc
+            elif m == "img_recall":
+                recall = ((preds==1)*(labels==1)).sum() / ((labels==1).sum())
+                df.loc["DNE", task] = recall
 
             # Update DF and save it
+            df.to_csv(os.path.join("results", filename), index=True)
 
-        return df
+        return preds, labels
 
     def predict(self, img):
         """
